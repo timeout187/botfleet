@@ -68,6 +68,16 @@ Most Discord bot developers start with one bot. Once you have 10, 20, or 100
 - 🌱 **Mock-data seed script** - `prisma/seed.ts` generates fake customers,
   bots, workers, shards, and alerts for local development; never reads or
   depends on real production data.
+- 🧭 **Setup wizard** - `/setup` is a real first-run checklist (database,
+  encryption key, Discord OAuth, admin allowlist, first worker/bot), each
+  step reflecting live env/DB state, not a canned flow. `/` redirects here
+  automatically until an owner account exists.
+- 👥 **Admin promotion UI** - `/admin/users` lets an owner change any
+  user's role; the last remaining owner can never be demoted.
+- ⚖️ **Worker rebalancing recommendations** - a real, deterministic
+  algorithm (`lib/rebalance.ts`) flags unassigned bots and over-capacity
+  workers and recommends specific moves; applying one is a click away on
+  the bot's detail page.
 
 **Explicitly stubbed, with clear `TODO(real-runner)` markers in the code:**
 
@@ -77,11 +87,11 @@ Most Discord bot developers start with one bot. Once you have 10, 20, or 100
   [`lib/runner/pm2-adapter.ts`](./lib/runner/pm2-adapter.ts).
 - Deployments has a real read view over the `deployments` table, but
   nothing triggers an actual deployment yet.
+- Rebalancing only recommends - nothing moves automatically.
 
 **Not built yet** (tracked in [`docs/roadmap.md`](./docs/roadmap.md)):
 
-- Setup wizard, plugin system, AI worker queue, worker auto-rebalancing,
-  in-app admin promotion UI.
+- Plugin system, AI worker queue.
 
 ## Architecture
 

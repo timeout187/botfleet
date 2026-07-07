@@ -30,6 +30,9 @@ resources owned by that user (`404` for anything not owned by you).
 | DELETE | `/api/admin/webhooks/:id`                      | -                                                                                        |                                                         |
 | POST   | `/api/admin/alerts/test`                       | `{ webhookId }`                                                                          | Sends a real Discord embed, mass mentions disabled      |
 | GET    | `/api/admin/security`                          | -                                                                                        | Real, computed security report                          |
+| GET    | `/api/admin/users`                             | -                                                                                        | List users and roles                                    |
+| PATCH  | `/api/admin/users/:id`                         | `{ role }`                                                                               | Owner-only; refuses to demote the last remaining owner  |
+| GET    | `/api/admin/workers/rebalance`                 | -                                                                                        | Rebalancing recommendations (read-only, nothing moves)  |
 
 ## Customer API
 

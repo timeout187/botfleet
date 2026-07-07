@@ -15,6 +15,13 @@
 - Plan/limit enforcement (free/starter/pro/enterprise).
 - Docker Compose (app + Postgres + Redis) and a production Dockerfile.
 - Mock-data seed script.
+- Setup wizard (`/setup`): a real first-run checklist reflecting live env/DB
+  state; `/` redirects here until an owner account exists.
+- Admin promotion UI (`/admin/users`): owners can change any user's role,
+  with a guard against demoting the last remaining owner.
+- Worker rebalancing recommendations (`lib/rebalance.ts`): a real algorithm
+  flags unassigned bots and over-capacity workers; applying a move is one
+  click on the bot's detail page (nothing moves automatically).
 
 ## Next
 
@@ -22,16 +29,15 @@
   (`lib/runner/*`) with an actual worker process that decrypts a token
   in-memory and runs it under PM2 or inside a Docker container, then
   reports heartbeats back into `bot_health`/`shards`.
-- **Setup wizard**: a first-run flow (create admin, configure DB/encryption
-  key/Discord OAuth, add first bot) instead of hand-editing `.env`.
 - **Plugin system**: health checks, dashboard cards, alert rules, bot
   templates, deployment hooks as a real extension point.
 - **AI worker queue**: log summarization, crash explanation, anomaly
   detection - queued, advisory-only, never given raw tokens.
 - **Deployment manager**: actually trigger a deploy (drain workers,
   staggered restarts, safe maintenance mode) instead of only recording one.
-- **Worker rebalancing**: automatic bot-to-worker rebalancing recommendations.
-- **Additional admin promotion UI** (today it's a manual DB update).
+- **Automatic** rebalancing (today's recommendations require a manual click
+  to apply, by design - see docs/security.md on why nothing acts without
+  an admin's confirmation).
 
 ## Explicitly out of scope for now
 

@@ -36,9 +36,10 @@ Bot tokens (and Discord webhook URLs) are encrypted with AES-256-GCM
 - **First-run admin bootstrap**: `BOTFLEET_ADMIN_DISCORD_IDS` is a
   comma-separated allowlist of Discord user IDs. The first time one of
   those users signs in, `auth.ts`'s `session` callback promotes them to
-  `owner`. There is no in-app UI yet to promote additional admins - do it
-  directly in the database (`UPDATE users SET role = 'admin' WHERE
-discord_user_id = '...'`) until that ships.
+  `owner`. Additional admins can be promoted afterward at `/admin/users` -
+  only an `owner` can change roles there, and the last remaining owner can
+  never be demoted (guarded server-side in
+  `PATCH /api/admin/users/:id`, not just hidden in the UI).
 
 ## Content-Security-Policy
 
