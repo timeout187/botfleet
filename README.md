@@ -79,19 +79,19 @@ Most Discord bot developers start with one bot. Once you have 10, 20, or 100
   workers and recommends specific moves; applying one is a click away on
   the bot's detail page.
 - 🧩 **Plugin system** - a real extension point
-  ([`lib/plugins/types.ts`](./lib/plugins/types.ts)) for dashboard cards,
+  ([`lib/plugins/types.ts`](./apps/control-plane/lib/plugins/types.ts)) for dashboard cards,
   Security Center checks, alert rules, bot templates, and deployment
   hooks. Ships with 6 working built-in plugins (Redis connectivity card,
   PM2/Docker runner deployment hooks, two alert rules evaluated against
   live bot health, a Node.js version health check, and discord.js/Eris bot
   templates) - browse them at `/admin/plugins`.
 - 🤖 **AI worker queue** - a real BullMQ/Redis queue
-  ([`lib/queue/`](./lib/queue/)), consumed by a separate worker process
+  ([`lib/queue/`](./apps/control-plane/lib/queue/)), consumed by a separate worker process
   (`npm run worker:ai`) so analysis never blocks a request handler. Ships
   with one working task, "explain this crash" (a button on the bot detail
   page), which is genuinely queued/cached/advisory but uses a small,
   honest rule-based analyzer (not an LLM call - see
-  [`lib/queue/crash-analysis.ts`](./lib/queue/crash-analysis.ts) for
+  [`lib/queue/crash-analysis.ts`](./apps/control-plane/lib/queue/crash-analysis.ts) for
   exactly why, and how to swap in a real one later without touching the
   queue or API routes). The job payload is only ever a bot ID and an
   already-redacted error string - never a token.
@@ -99,35 +99,35 @@ Most Discord bot developers start with one bot. Once you have 10, 20, or 100
   runs a real BullMQ repeatable job (`lib/queue/scheduler-queue.ts`) that
   evaluates every alert rule every 5 minutes, on top of the manual button
   at `/admin/plugins` - both call the same
-  [`lib/alerts/evaluate-rules.ts`](./lib/alerts/evaluate-rules.ts) so
+  [`lib/alerts/evaluate-rules.ts`](./apps/control-plane/lib/alerts/evaluate-rules.ts) so
   there's exactly one code path, not two that could drift apart.
 - 🚀 **Deployment manager** - "Trigger deployment" at `/admin/deployments`
   creates a real `Deployment` row and runs every registered plugin's
   `beforeDeploy()`/`afterDeploy()` hook (see
-  [`lib/plugins/builtin/runner-plugins.ts`](./lib/plugins/builtin/runner-plugins.ts)),
+  [`lib/plugins/builtin/runner-plugins.ts`](./apps/control-plane/lib/plugins/builtin/runner-plugins.ts)),
   transitioning `pending -> in_progress -> success/failed` for real, with
   each hook writing its own audit log entry.
 - ⚙️ **Real process control (PM2 mode)** - `/admin/bots/:id` start/stop/
   restart actually spawns/stops/restarts a real OS process per bot via the
   `pm2` npm package (see
-  [`lib/runner/pm2-adapter.ts`](./lib/runner/pm2-adapter.ts)), with the
+  [`lib/runner/pm2-adapter.ts`](./apps/control-plane/lib/runner/pm2-adapter.ts)), with the
   bot's token decrypted in-memory and passed as an env var, never logged.
   Verified end-to-end: a real process came up (visible in `pm2 list` with
   an actual PID), emitted heartbeat logs, and was cleanly torn down.
 - 🧹 **Worker draining** - "Drain" on `/admin/workers`
-  ([`lib/workers/drain.ts`](./lib/workers/drain.ts)) actually moves every
+  ([`lib/workers/drain.ts`](./apps/control-plane/lib/workers/drain.ts)) actually moves every
   bot off a worker onto other online workers with spare capacity (reusing
   the rebalance algorithm), then marks it offline once empty. Bots that
   can't be moved are reported as "stranded", not silently dropped.
 - 🚧 **Safe maintenance mode** - a toggle on `/admin/settings`
-  ([`lib/system-state.ts`](./lib/system-state.ts)) backed by a real DB row.
+  ([`lib/system-state.ts`](./apps/control-plane/lib/system-state.ts)) backed by a real DB row.
   While enabled, customer-triggered restarts return `503`, the public
-  [`/status`](./app/status/page.tsx) page shows "Scheduled maintenance",
+  [`/status`](./apps/control-plane/app/status/page.tsx) page shows "Scheduled maintenance",
   and every admin page shows a banner - verified end-to-end against the
   live database in both directions.
 - 🔁 **Staggered restarts on deployment** - "Trigger deployment" now
   queues a real BullMQ job per currently-online bot
-  ([`lib/queue/restart-queue.ts`](./lib/queue/restart-queue.ts)), 15s
+  ([`lib/queue/restart-queue.ts`](./apps/control-plane/lib/queue/restart-queue.ts)), 15s
   apart, each one restarting via the same PM2/Docker runner used
   everywhere else - never blocking the deployment request. Each job
   re-checks maintenance mode and worker status right before running, and
@@ -137,7 +137,7 @@ Most Discord bot developers start with one bot. Once you have 10, 20, or 100
 
 **Explicitly stubbed / not fully verified here, said plainly:**
 
-- **Docker mode**'s runner ([`lib/runner/docker-adapter.ts`](./lib/runner/docker-adapter.ts))
+- **Docker mode**'s runner ([`lib/runner/docker-adapter.ts`](./apps/control-plane/lib/runner/docker-adapter.ts))
   is implemented the same way as PM2 mode using `dockerode`, and the
   client's connection to a real Docker daemon was verified - but the full
   create-container flow couldn't be run end-to-end in this sandbox
@@ -146,7 +146,7 @@ Most Discord bot developers start with one bot. Once you have 10, 20, or 100
   registry access before relying on it.
 - The placeholder `worker-runtime/bot-process.js` process is not a real
   discord.js/Eris client - see
-  [`lib/plugins/builtin/bot-templates.ts`](./lib/plugins/builtin/bot-templates.ts)
+  [`lib/plugins/builtin/bot-templates.ts`](./apps/control-plane/lib/plugins/builtin/bot-templates.ts)
   for what a real one looks like; wiring one in is the natural next step
   (it just needs a real Discord bot token to test against).
 - Rebalancing only recommends - nothing moves automatically.
@@ -192,18 +192,29 @@ flowchart TD
 
 ## Quickstart
 
+This is an npm workspace: `apps/control-plane` is the Next.js dashboard/API
+(the only app that exists today - see `docs/distributed-audit.md` and
+`docs/roadmap.md` for what's next). Install once from the repo root;
+`.env` lives inside `apps/control-plane` since that's the only app reading
+one so far.
+
 ```bash
 git clone https://github.com/timeout187/botfleet.git
 cd botfleet
 npm install
 
-cp .env.example .env
-# edit .env: DATABASE_URL, BOTFLEET_ENCRYPTION_KEY, AUTH_DISCORD_ID/SECRET,
-# AUTH_SECRET, BOTFLEET_ADMIN_DISCORD_IDS
+cp apps/control-plane/.env.example apps/control-plane/.env
+# edit apps/control-plane/.env: DATABASE_URL, BOTFLEET_ENCRYPTION_KEY,
+# AUTH_DISCORD_ID/SECRET, AUTH_SECRET, BOTFLEET_ADMIN_DISCORD_IDS
 
-npx prisma migrate deploy
+npm run --workspace @botfleet/control-plane -- prisma migrate deploy
 npm run dev
 ```
+
+`npm run dev` (from the repo root) runs the control plane's dev server;
+every root script (`build`, `lint`, `typecheck`, `test`, `verify`, ...)
+delegates to the relevant workspace the same way - see the root
+`package.json`.
 
 Generate the two required secrets:
 
@@ -215,21 +226,25 @@ openssl rand -base64 32   # AUTH_SECRET
 Create a Discord OAuth app at the
 [Discord Developer Portal](https://discord.com/developers/applications),
 add `http://localhost:3000/api/auth/callback/discord` as a redirect, and put
-its client ID/secret in `.env`. Put your own Discord user ID in
-`BOTFLEET_ADMIN_DISCORD_IDS` to be promoted to owner on first sign-in.
+its client ID/secret in `apps/control-plane/.env`. Put your own Discord
+user ID in `BOTFLEET_ADMIN_DISCORD_IDS` to be promoted to owner on first
+sign-in.
 
 Want mock data to look around with instead of an empty dashboard?
 
 ```bash
-npx prisma db seed
+npm run --workspace @botfleet/control-plane -- prisma db seed
 ```
 
 ### Docker Compose
 
+The compose file lives at the repo root; the control plane's Dockerfile
+build context is the repo root too (it needs the workspace's
+`package-lock.json`) - see `apps/control-plane/Dockerfile`.
+
 ```bash
-cp .env.example .env   # fill in the same values as above
-export $(grep -v '^#' .env | xargs)
-docker compose up --build -d
+cp apps/control-plane/.env.example apps/control-plane/.env   # fill in the same values as above
+docker compose --env-file apps/control-plane/.env up --build -d
 ```
 
 Runs the app, Postgres, Redis, and the AI worker (`worker-ai`) in
@@ -240,19 +255,19 @@ recover once the `app` container has migrated - restart policy handles it.
 ## Security model
 
 - **Token vault**: AES-256-GCM, 32-byte key from `BOTFLEET_ENCRYPTION_KEY`.
-  See [`lib/crypto.ts`](./lib/crypto.ts). Encrypted tokens never leave the
+  See [`lib/crypto.ts`](./apps/control-plane/lib/crypto.ts). Encrypted tokens never leave the
   server - no API route returns `tokenEncrypted`, not even masked.
 - **Admin API**: every `/api/admin/*` route calls `requireAdmin()`, which
   returns a JSON 401/403 - it never redirects a fetch request to a login
-  page. See [`lib/require-admin.ts`](./lib/require-admin.ts).
+  page. See [`lib/require-admin.ts`](./apps/control-plane/lib/require-admin.ts).
 - **Customer isolation**: `loadOwnedBot()` only returns a bot if it belongs
   to a customer owned by the requesting user, and returns "not found" (not
   "forbidden") for both nonexistent and not-yours bots, so IDs can't be
-  probed. See [`lib/require-customer.ts`](./lib/require-customer.ts).
+  probed. See [`lib/require-customer.ts`](./apps/control-plane/lib/require-customer.ts).
 - **CSP**: a restrictive Content-Security-Policy (no `unsafe-eval` in
-  production) is set for every response in [`next.config.ts`](./next.config.ts).
+  production) is set for every response in [`next.config.ts`](./apps/control-plane/next.config.ts).
 - **Security Center**: `GET /api/admin/security` computes a real report from
-  actual environment/DB state - see [`lib/security-checks.ts`](./lib/security-checks.ts).
+  actual environment/DB state - see [`lib/security-checks.ts`](./apps/control-plane/lib/security-checks.ts).
 
 Full write-up: [`docs/security.md`](./docs/security.md).
 

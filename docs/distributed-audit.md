@@ -5,17 +5,23 @@ Distributed Control Plane" mission. Everything below reflects the actual
 state of the repository at commit `7b295e0`, verified by reading the
 code and running the tooling - not by trusting README/docs claims.
 
+> Note: this snapshot describes the pre-workspace-conversion layout, so
+> bare paths like `lib/rebalance.ts` below refer to what is now
+> `apps/control-plane/lib/rebalance.ts` after Phase 1 (see "Migration
+> risks" below for the move itself). This file is not updated after the
+> fact - it's a point-in-time record.
+
 ## Baseline command results
 
 Run against a live local Postgres 16 + Redis 7 (no mocks):
 
-| Command | Result |
-| --- | --- |
-| `npm install` | Clean. `672 packages audited`, `6 moderate` advisories (2 root advisories, counted across more dependency paths than before - same two issues documented in `docs/security.md`: `@hono/node-server` via Prisma's unused `prisma dev` CLI, `postcss` via Next.js's bundled build pipeline. No new advisories.) |
-| `npx tsc --noEmit` | Clean, 0 errors. |
-| `npx eslint .` | Clean, 0 errors/warnings. |
-| `npm run build` (`next build`) | Succeeds. 33 routes, all server-rendered on demand except `/_not-found`. |
-| `npm run test` | **Script does not exist.** There is no automated test suite anywhere in this repository - no unit tests, no integration tests, no e2e tests, no test runner installed (no Vitest/Jest/etc in `package.json`). This is a real gap, not a docs inconsistency; Phase 19 of the distributed mission starts from zero. |
+| Command                        | Result                                                                                                                                                                                                                                                                                                            |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm install`                  | Clean. `672 packages audited`, `6 moderate` advisories (2 root advisories, counted across more dependency paths than before - same two issues documented in `docs/security.md`: `@hono/node-server` via Prisma's unused `prisma dev` CLI, `postcss` via Next.js's bundled build pipeline. No new advisories.)     |
+| `npx tsc --noEmit`             | Clean, 0 errors.                                                                                                                                                                                                                                                                                                  |
+| `npx eslint .`                 | Clean, 0 errors/warnings.                                                                                                                                                                                                                                                                                         |
+| `npm run build` (`next build`) | Succeeds. 33 routes, all server-rendered on demand except `/_not-found`.                                                                                                                                                                                                                                          |
+| `npm run test`                 | **Script does not exist.** There is no automated test suite anywhere in this repository - no unit tests, no integration tests, no e2e tests, no test runner installed (no Vitest/Jest/etc in `package.json`). This is a real gap, not a docs inconsistency; Phase 19 of the distributed mission starts from zero. |
 
 No `lint`/`typecheck`/`build` failures to fix. The codebase is in a clean,
 shippable state as a **single-node** application.
@@ -90,7 +96,7 @@ notes):
    `worker-runtime/bot-process.js` via PM2's programmatic API (or a Docker
    container), passing the token as an env var.
 5. `Bot.status`/`BotHealth.status` transition `offline -> starting ->
-   online` (or `-> stopping -> offline`), all written from the same
+online` (or `-> stopping -> offline`), all written from the same
    process performing the spawn.
 6. There is no live channel back from the spawned process into
    `BotHealth`/`Shard` beyond what the placeholder script logs to stdout
@@ -119,13 +125,13 @@ notes):
 5. Rotation re-encrypts in place; audit log records that a rotation
    happened, never the value.
 
-There is currently no concept of a *short-lived, scoped* credential - the
+There is currently no concept of a _short-lived, scoped_ credential - the
 adapter always has the full decrypted token, for as long as the process
 holding it stays up. A distributed agent needs a materially different
 model (Phase 4's "no plaintext tokens in agent local state after launch"
 requirement is not satisfiable by reusing this code unchanged - the token
 still has to reach the agent process at least once to hand to the real
-Discord client; the constraint is about *storage*, not about the token
+Discord client; the constraint is about _storage_, not about the token
 never existing in the agent's memory).
 
 ## Current worker model
@@ -182,7 +188,7 @@ process establishing an authenticated outbound connection) from scratch.
 ## Migration risks
 
 1. **Workspace conversion (Phase 1) must not break `next build`/`next
-   dev`** - the existing app has zero non-npm build tooling
+dev`** - the existing app has zero non-npm build tooling
    dependencies (Turbopack via Next.js's own CLI), so converting to npm
    workspaces mainly means: move `app/`, `components/`, `lib/`, `prisma/`,
    etc. into `apps/control-plane/`, add a root `package.json` with
@@ -206,10 +212,10 @@ process establishing an authenticated outbound connection) from scratch.
    instructions in `README.md` silently break.
 4. **No CI currently exists at all** (`.github/workflows` is empty/absent
    - confirmed by listing the repo root: no `.github` directory). Every
-   verification in this project so far has been manual, in this session.
-   This is itself a risk the mission's Phase 20 addresses, but it means
-   there's no safety net today catching a broken workspace conversion
-   except the same manual `tsc`/`eslint`/`build` commands run here.
+     verification in this project so far has been manual, in this session.
+     This is itself a risk the mission's Phase 20 addresses, but it means
+     there's no safety net today catching a broken workspace conversion
+     except the same manual `tsc`/`eslint`/`build` commands run here.
 
 ## Exact implementation sequence for this pass
 

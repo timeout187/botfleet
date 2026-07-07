@@ -23,7 +23,9 @@ services:
       - "6379:6379"
 
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: apps/control-plane/Dockerfile
     restart: unless-stopped
     depends_on:
       db:
@@ -41,7 +43,9 @@ services:
       BOTFLEET_ADMIN_DISCORD_IDS: "${BOTFLEET_ADMIN_DISCORD_IDS:-}"
 
   worker-ai:
-    build: .
+    build:
+      context: .
+      dockerfile: apps/control-plane/Dockerfile
     command: ["npm", "run", "worker:ai"]
     restart: unless-stopped
     depends_on:

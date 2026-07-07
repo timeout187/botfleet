@@ -1,5 +1,9 @@
 # Roadmap
 
+> Source paths below (`lib/`, `app/`, ...) are relative to
+> `apps/control-plane/` - see `docs/distributed-audit.md` for the
+> workspace conversion.
+
 ## Shipped
 
 - Data model (Prisma + Postgres): users/accounts/sessions, customers, bots,

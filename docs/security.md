@@ -1,5 +1,10 @@
 # Security
 
+> Source paths below (`lib/`, `next.config.ts`, ...) are relative to
+> `apps/control-plane/` - see `docs/distributed-audit.md` for the
+> workspace conversion. `docs/threat-model.md` (once it exists) covers
+> the distributed control-plane threat model.
+
 ## Token vault
 
 Bot tokens (and Discord webhook URLs) are encrypted with AES-256-GCM

@@ -1,5 +1,13 @@
 # Architecture
 
+> This document describes `apps/control-plane` - the single Next.js app
+> this repo started as. All `lib/`, `app/`, `components/`, `prisma/`,
+> `worker-runtime/`, and `next.config.ts` paths below are relative to
+> `apps/control-plane/`, not the repo root - the repo became an npm
+> workspace in the distributed-control-plane mission (see
+> `docs/distributed-audit.md`); `docs/distributed-architecture.md`
+> (once it exists) covers the multi-app/package picture.
+
 BotFleet is a single Next.js 16 (App Router) application backed by
 PostgreSQL via Prisma, plus one standalone worker process for AI tasks.
 There's no separate backend service for the dashboard/API - the admin

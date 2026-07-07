@@ -3,22 +3,27 @@
 BotFleet is early-stage and the data model/API surface are still settling.
 Please open an issue before starting a large PR so we can agree on direction.
 
+This is an npm workspace (`apps/*`, `packages/*`) - `apps/control-plane`
+is the Next.js dashboard/API. Source path references below are relative
+to `apps/control-plane/` unless noted otherwise.
+
 ## Development setup
 
 ```bash
 npm install
-cp .env.example .env   # fill in DATABASE_URL, BOTFLEET_ENCRYPTION_KEY, Discord OAuth, AUTH_SECRET
-npx prisma migrate dev
+cp apps/control-plane/.env.example apps/control-plane/.env   # fill in DATABASE_URL, BOTFLEET_ENCRYPTION_KEY, Discord OAuth, AUTH_SECRET
+npm run --workspace @botfleet/control-plane -- prisma migrate dev
 npm run dev
 ```
 
 ## Before opening a PR
 
 ```bash
-npx tsc --noEmit
-npm run lint
-npm run build
+npm run verify
 ```
+
+Runs lint, typecheck, test, and build across every workspace (see the
+root `package.json`).
 
 ## Project conventions
 
