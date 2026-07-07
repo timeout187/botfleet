@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/require-admin";
 import { db } from "@/lib/db";
 import { writeAuditLog } from "@/lib/audit";
 import { serializeBot } from "@/lib/serialize";
+import { setBotWorker } from "@/lib/worker-assignment";
 import {
   assertGuildLimitWithinPlan,
   assertShardCountWithinPlan,
@@ -67,7 +68,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     throw err;
   }
 
-  const bot = await db.bot.update({ where: { id }, data: input });
+  const { workerGroupId, ...rest } = input;
+  const bot = await db.bot.update({ where: { id }, data: rest });
+  if (workerGroupId !== undefined) {
+    await setBotWorker(id, workerGroupId);
+  }
+  const finalBot =
+    workerGroupId !== undefined ? await db.bot.findUniqueOrThrow({ where: { id } }) : bot;
 
   await writeAuditLog({
     actorUserId: guard.session.user.id,
@@ -77,5 +84,5 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     metadata: input,
   });
 
-  return NextResponse.json({ bot: serializeBot(bot) });
+  return NextResponse.json({ bot: serializeBot(finalBot) });
 }

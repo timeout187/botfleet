@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { encryptSecret } from "@/lib/crypto";
 import { writeAuditLog } from "@/lib/audit";
 import { serializeBot } from "@/lib/serialize";
+import { setBotWorker } from "@/lib/worker-assignment";
 import {
   assertBotCountWithinPlan,
   assertGuildLimitWithinPlan,
@@ -73,10 +74,12 @@ export async function POST(request: Request) {
       plan: input.plan,
       guildLimit: input.guildLimit,
       shardCount: input.shardCount,
-      workerGroupId: input.workerGroupId,
     },
   });
   await db.botHealth.create({ data: { botId: bot.id } });
+  if (input.workerGroupId) {
+    await setBotWorker(bot.id, input.workerGroupId);
+  }
 
   await writeAuditLog({
     actorUserId: guard.session.user.id,
@@ -86,5 +89,9 @@ export async function POST(request: Request) {
     metadata: { name: bot.name, customerId: bot.customerId },
   });
 
-  return NextResponse.json({ bot: serializeBot(bot) }, { status: 201 });
+  const finalBot = input.workerGroupId
+    ? await db.bot.findUniqueOrThrow({ where: { id: bot.id } })
+    : bot;
+
+  return NextResponse.json({ bot: serializeBot(finalBot) }, { status: 201 });
 }

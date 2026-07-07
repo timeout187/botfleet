@@ -21,6 +21,18 @@ export async function requireAdmin(): Promise<AdminGuardResult> {
   return { ok: true, session };
 }
 
+/** Stricter than requireAdmin(): only "owner" may change other users' roles. */
+export async function requireOwner(): Promise<AdminGuardResult> {
+  const session = await auth();
+  if (!session?.user) {
+    return { ok: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+  if (session.user.role !== Role.owner) {
+    return { ok: false, response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+  return { ok: true, session };
+}
+
 export async function requireSession(): Promise<AdminGuardResult> {
   const session = await auth();
   if (!session?.user) {

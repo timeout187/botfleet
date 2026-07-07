@@ -4,12 +4,26 @@ import { Badge } from "@/components/ui/badge";
 import { workerStatusVariant, formatStatusLabel } from "@/components/status";
 import { CreateWorkerDialog } from "@/components/CreateWorkerDialog";
 import { WorkerRestartButton } from "@/components/WorkerRestartButton";
+import { computeRebalanceRecommendations } from "@/lib/rebalance";
 
 export default async function WorkersPage() {
-  const workers = await db.worker.findMany({
-    orderBy: { createdAt: "desc" },
-    include: { _count: { select: { bots: true } } },
-  });
+  const [workers, bots] = await Promise.all([
+    db.worker.findMany({
+      orderBy: { createdAt: "desc" },
+      include: { _count: { select: { bots: true } } },
+    }),
+    db.bot.findMany({ select: { id: true, name: true, workerGroupId: true } }),
+  ]);
+
+  const recommendations = computeRebalanceRecommendations(
+    workers.map((w) => ({
+      id: w.id,
+      name: w.name,
+      maxBots: w.maxBots,
+      currentBots: w.currentBots,
+    })),
+    bots,
+  );
 
   return (
     <div className="space-y-6">
@@ -52,6 +66,34 @@ export default async function WorkersPage() {
         ))}
         {workers.length === 0 && <p className="text-sm text-zinc-500">No workers yet.</p>}
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Rebalancing recommendations</CardTitle>
+        </CardHeader>
+        {recommendations.length === 0 ? (
+          <p className="text-sm text-zinc-500">
+            Load is balanced - no unassigned bots and no worker is over its max bots.
+          </p>
+        ) : (
+          <div className="divide-y divide-zinc-800">
+            {recommendations.map((r, i) => (
+              <div key={i} className="py-3 text-sm">
+                <div className="text-zinc-200">
+                  {r.type === "assign" ? "Assign" : "Move"} <strong>{r.botName}</strong>
+                  {r.fromWorkerName ? ` from ${r.fromWorkerName}` : ""} to{" "}
+                  <strong>{r.toWorkerName}</strong>
+                </div>
+                <div className="text-xs text-zinc-500">{r.reason}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="mt-4 text-xs text-zinc-600">
+          Recommendations only - nothing moves automatically. Apply one via a bot&apos;s detail page
+          (change its worker assignment) or <code>PATCH /api/admin/bots/:id</code>.
+        </p>
+      </Card>
     </div>
   );
 }

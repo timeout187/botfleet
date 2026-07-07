@@ -4,13 +4,17 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { botStatusVariant, formatStatusLabel, shardStatusVariant } from "@/components/status";
 import { BotActions } from "@/components/BotActions";
+import { ChangeWorkerSelect } from "@/components/ChangeWorkerSelect";
 
 export default async function BotDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const bot = await db.bot.findUnique({
-    where: { id },
-    include: { customer: true, health: true, shards: true, workerGroup: true },
-  });
+  const [bot, workers] = await Promise.all([
+    db.bot.findUnique({
+      where: { id },
+      include: { customer: true, health: true, shards: true, workerGroup: true },
+    }),
+    db.worker.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+  ]);
   if (!bot) notFound();
 
   return (
@@ -61,7 +65,16 @@ export default async function BotDetailPage({ params }: { params: Promise<{ id: 
           </CardHeader>
           <dl className="space-y-2 text-sm">
             <Row label="Plan" value={bot.plan} />
-            <Row label="Worker" value={bot.workerGroup?.name ?? "Unassigned"} />
+            <div className="flex items-center justify-between border-b border-zinc-900 pb-2">
+              <dt className="text-zinc-500">Worker</dt>
+              <dd>
+                <ChangeWorkerSelect
+                  botId={bot.id}
+                  currentWorkerId={bot.workerGroupId}
+                  workers={workers}
+                />
+              </dd>
+            </div>
             <Row label="Runner mode" value={bot.workerGroup?.mode ?? "pm2 (default)"} />
             <Row label="Created" value={new Date(bot.createdAt).toLocaleString()} />
           </dl>
