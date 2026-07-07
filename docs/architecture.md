@@ -103,6 +103,16 @@ LLM (there's no AI provider API key configured in this project). Caching:
 identical `(botId, errorMessage)` pairs reuse the same BullMQ job ID for an
 hour, so re-clicking the button on the same crash doesn't re-run analysis.
 
+The same process also runs a second BullMQ `Worker`, on a separate
+`botfleet-scheduled-tasks` queue (`lib/queue/scheduler-queue.ts`), for a
+real repeatable job that evaluates every alert rule every 5 minutes.
+`ensureAlertEvaluationScheduled()` registers this job on worker startup;
+BullMQ dedupes repeatable jobs by their repeat key, so this is safe to
+call every time the worker restarts - it never creates a second schedule.
+This job and the manual "Evaluate alert rules now" button on
+`/admin/plugins` both call the same `lib/alerts/evaluate-rules.ts`
+function, so there's one evaluation code path, not two that could drift.
+
 ## Auth model
 
 - Admin/owner: promoted via `BOTFLEET_ADMIN_DISCORD_IDS` on first Discord

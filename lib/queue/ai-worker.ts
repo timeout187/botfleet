@@ -1,16 +1,23 @@
 /**
- * Standalone worker process for BotFleet's AI task queue. Run separately
- * from the Next.js web process (`npm run worker:ai`) so a slow or stuck
- * analysis job never blocks a dashboard request - this is the "must not
- * block bot event handlers" requirement from the spec, applied to the web
- * app's own request handlers today (no real bot event loop exists yet;
- * see lib/runner for that gap).
+ * Standalone background-task worker process for BotFleet. Run separately
+ * from the Next.js web process (`npm run worker:ai`) so slow or scheduled
+ * work never blocks a dashboard request. Hosts two BullMQ Workers in one
+ * process: the AI task queue (crash explanation) and the scheduled-task
+ * queue (recurring alert rule evaluation) - both are "background work",
+ * so one process is enough; split them into separate processes later if
+ * either needs independent scaling.
  */
 import "dotenv/config";
 import { Worker, type Job } from "bullmq";
 import { getQueueConnection } from "@/lib/queue/connection";
 import { AI_QUEUE_NAME, type ExplainCrashJobData } from "@/lib/queue/ai-queue";
 import { analyzeCrash, type CrashAnalysis } from "@/lib/queue/crash-analysis";
+import {
+  SCHEDULER_QUEUE_NAME,
+  EVALUATE_ALERTS_JOB_NAME,
+  ensureAlertEvaluationScheduled,
+} from "@/lib/queue/scheduler-queue";
+import { evaluateAlertRules, type EvaluateAlertRulesResult } from "@/lib/alerts/evaluate-rules";
 import { writeAuditLog } from "@/lib/audit";
 
 async function processExplainCrash(job: Job<ExplainCrashJobData>): Promise<CrashAnalysis> {
@@ -30,7 +37,7 @@ async function processExplainCrash(job: Job<ExplainCrashJobData>): Promise<Crash
   return result;
 }
 
-const worker = new Worker<ExplainCrashJobData, CrashAnalysis>(
+const aiWorker = new Worker<ExplainCrashJobData, CrashAnalysis>(
   AI_QUEUE_NAME,
   async (job) => {
     switch (job.name) {
@@ -43,11 +50,41 @@ const worker = new Worker<ExplainCrashJobData, CrashAnalysis>(
   { connection: getQueueConnection(), concurrency: 2 },
 );
 
-worker.on("completed", (job) => {
+aiWorker.on("completed", (job) => {
   console.log(`[ai-worker] completed ${job.id} (${job.name})`);
 });
-worker.on("failed", (job, err) => {
+aiWorker.on("failed", (job, err) => {
   console.error(`[ai-worker] failed ${job?.id} (${job?.name}):`, err.message);
 });
 
-console.log(`[ai-worker] listening on queue "${AI_QUEUE_NAME}"`);
+const schedulerWorker = new Worker<Record<string, never>, EvaluateAlertRulesResult>(
+  SCHEDULER_QUEUE_NAME,
+  async (job) => {
+    switch (job.name) {
+      case EVALUATE_ALERTS_JOB_NAME:
+        // actorUserId is null here - this run wasn't triggered by a human,
+        // and the audit log entry (action "alerts.evaluate") reflects that.
+        return evaluateAlertRules(null);
+      default:
+        throw new Error(`Unknown scheduled job type: ${job.name}`);
+    }
+  },
+  { connection: getQueueConnection(), concurrency: 1 },
+);
+
+schedulerWorker.on("completed", (job) => {
+  console.log(
+    `[scheduler-worker] completed ${job.id} (${job.name}): ${JSON.stringify(job.returnvalue)}`,
+  );
+});
+schedulerWorker.on("failed", (job, err) => {
+  console.error(`[scheduler-worker] failed ${job?.id} (${job?.name}):`, err.message);
+});
+
+void (async () => {
+  await ensureAlertEvaluationScheduled();
+  console.log(`[ai-worker] listening on queue "${AI_QUEUE_NAME}"`);
+  console.log(
+    `[scheduler-worker] listening on queue "${SCHEDULER_QUEUE_NAME}" (alert evaluation every 5 minutes)`,
+  );
+})();

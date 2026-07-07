@@ -95,6 +95,12 @@ Most Discord bot developers start with one bot. Once you have 10, 20, or 100
   exactly why, and how to swap in a real one later without touching the
   queue or API routes). The job payload is only ever a bot ID and an
   already-redacted error string - never a token.
+- ⏱️ **Scheduled alert rule evaluation** - the same worker process also
+  runs a real BullMQ repeatable job (`lib/queue/scheduler-queue.ts`) that
+  evaluates every alert rule every 5 minutes, on top of the manual button
+  at `/admin/plugins` - both call the same
+  [`lib/alerts/evaluate-rules.ts`](./lib/alerts/evaluate-rules.ts) so
+  there's exactly one code path, not two that could drift apart.
 
 **Explicitly stubbed, with clear `TODO(real-runner)` markers in the code:**
 
@@ -105,11 +111,8 @@ Most Discord bot developers start with one bot. Once you have 10, 20, or 100
 - Deployments has a real read view over the `deployments` table, but
   nothing triggers an actual deployment yet.
 - Rebalancing only recommends - nothing moves automatically.
-- Alert rules run on demand (a button at `/admin/plugins`), not on a
-  schedule yet.
 - The AI worker's crash analysis is rule-based, not a real LLM call (see
-  above) - and there is no scheduled runner yet, so it only runs when
-  someone clicks "Explain this crash".
+  above) - it only runs when someone clicks "Explain this crash".
 
 ## Architecture
 

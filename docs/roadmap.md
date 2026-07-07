@@ -31,6 +31,10 @@
   a request handler. One working task ships - "explain this crash" - using
   a rule-based analyzer (not an LLM call yet; see
   `lib/queue/crash-analysis.ts` for why and how to swap one in).
+- Scheduled alert rule evaluation (`lib/queue/scheduler-queue.ts`): a real
+  BullMQ repeatable job runs every alert rule every 5 minutes, sharing the
+  exact same evaluation code (`lib/alerts/evaluate-rules.ts`) as the
+  manual button at `/admin/plugins`.
 
 ## Next
 
@@ -42,9 +46,6 @@
   plumbing is real today; `analyzeCrash()` is the one function that would
   change, and log summarization/anomaly detection would be new job types
   in the same queue.
-- **Scheduled alert rule evaluation and AI queue triggers** (today both are
-  manual buttons at `/admin/plugins` - a cron-style runner is the natural
-  next step for both).
 - **Deployment manager**: actually trigger a deploy (drain workers,
   staggered restarts, safe maintenance mode) instead of only recording one.
 - **Automatic** rebalancing (today's recommendations require a manual click
