@@ -1,0 +1,319 @@
+// BotFleet database schema.
+// Learn more about Prisma: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  owner
+  admin
+  member
+}
+
+enum PlanTier {
+  free
+  starter
+  pro
+  enterprise
+  custom
+}
+
+enum CustomerStatus {
+  active
+  suspended
+  expired
+}
+
+enum BotStatus {
+  online
+  offline
+  starting
+  stopping
+  failed
+  disabled
+  expired
+  rate_limited
+}
+
+enum WorkerMode {
+  pm2
+  docker
+}
+
+enum WorkerStatus {
+  online
+  offline
+  overloaded
+  failed
+  draining
+}
+
+enum AssignmentStatus {
+  active
+  draining
+  removed
+}
+
+enum ShardStatus {
+  connected
+  connecting
+  disconnected
+  reconnecting
+}
+
+enum AlertSeverity {
+  info
+  warning
+  error
+  critical
+}
+
+enum AlertStatus {
+  open
+  acknowledged
+  resolved
+}
+
+enum DeploymentStatus {
+  pending
+  in_progress
+  success
+  failed
+  rolled_back
+}
+
+// User fields split in two groups:
+// - name/email/emailVerified/image are populated by @auth/prisma-adapter
+//   from the Discord OAuth profile (Auth.js's standard adapter contract).
+// - discordUserId/role are BotFleet's own fields, backfilled by the auth
+//   session callback the first time a session is read for a new user.
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime? @map("email_verified")
+  image         String?
+  discordUserId String?   @unique @map("discord_user_id")
+  role          Role      @default(member)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  accounts    Account[]
+  sessions    Session[]
+  customers   Customer[]
+  auditLogs   AuditLog[]
+  deployments Deployment[] @relation("DeployedBy")
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Customer {
+  id          String         @id @default(cuid())
+  ownerUserId String         @map("owner_user_id")
+  owner       User           @relation(fields: [ownerUserId], references: [id])
+  name        String
+  plan        PlanTier       @default(free)
+  status      CustomerStatus @default(active)
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  bots Bot[]
+
+  @@map("customers")
+}
+
+model Bot {
+  id              String    @id @default(cuid())
+  customerId      String    @map("customer_id")
+  customer        Customer  @relation(fields: [customerId], references: [id])
+  name            String
+  clientId        String    @map("client_id")
+  tokenEncrypted  String    @map("token_encrypted")
+  publicKey       String?   @map("public_key")
+  plan            PlanTier  @default(free)
+  status          BotStatus @default(offline)
+  guildLimit      Int       @default(100) @map("guild_limit")
+  shardCount      Int       @default(1) @map("shard_count")
+  workerGroupId   String?   @map("worker_group_id")
+  workerGroup     Worker?   @relation(fields: [workerGroupId], references: [id])
+  lastReadyAt     DateTime? @map("last_ready_at")
+  lastHeartbeatAt DateTime? @map("last_heartbeat_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  health      BotHealth?
+  shards      Shard[]
+  assignments WorkerAssignment[]
+
+  @@index([customerId])
+  @@index([workerGroupId])
+  @@map("bots")
+}
+
+model BotHealth {
+  botId         String    @id @map("bot_id")
+  bot           Bot       @relation(fields: [botId], references: [id], onDelete: Cascade)
+  status        BotStatus @default(offline)
+  guildCount    Int       @default(0) @map("guild_count")
+  shardCount    Int       @default(1) @map("shard_count")
+  pingMs        Int?      @map("ping_ms")
+  memoryMb      Int?      @map("memory_mb")
+  restartCount  Int       @default(0) @map("restart_count")
+  lastErrorSafe String?   @map("last_error_safe")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@map("bot_health")
+}
+
+model Worker {
+  id              String       @id @default(cuid())
+  name            String
+  mode            WorkerMode   @default(pm2)
+  status          WorkerStatus @default(offline)
+  host            String?
+  maxBots         Int          @default(5) @map("max_bots")
+  currentBots     Int          @default(0) @map("current_bots")
+  memoryMb        Int?         @map("memory_mb")
+  cpuPercent      Float?       @map("cpu_percent")
+  lastHeartbeatAt DateTime?    @map("last_heartbeat_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  bots        Bot[]
+  assignments WorkerAssignment[]
+
+  @@map("workers")
+}
+
+model WorkerAssignment {
+  id        String           @id @default(cuid())
+  workerId  String           @map("worker_id")
+  worker    Worker           @relation(fields: [workerId], references: [id])
+  botId     String           @map("bot_id")
+  bot       Bot              @relation(fields: [botId], references: [id])
+  status    AssignmentStatus @default(active)
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  @@index([workerId])
+  @@index([botId])
+  @@map("worker_assignments")
+}
+
+model Shard {
+  id              String      @id @default(cuid())
+  botId           String      @map("bot_id")
+  bot             Bot         @relation(fields: [botId], references: [id], onDelete: Cascade)
+  shardId         Int         @map("shard_id")
+  status          ShardStatus @default(disconnected)
+  guildCount      Int         @default(0) @map("guild_count")
+  pingMs          Int?        @map("ping_ms")
+  reconnectCount  Int         @default(0) @map("reconnect_count")
+  lastHeartbeatAt DateTime?   @map("last_heartbeat_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  @@unique([botId, shardId])
+  @@map("shards")
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorUserId  String?  @map("actor_user_id")
+  actor        User?    @relation(fields: [actorUserId], references: [id])
+  action       String
+  targetType   String   @map("target_type")
+  targetId     String   @map("target_id")
+  metadataJson Json?    @map("metadata_json")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([targetType, targetId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Alert {
+  id        String        @id @default(cuid())
+  eventType String        @map("event_type")
+  severity  AlertSeverity @default(info)
+  title     String
+  message   String
+  status    AlertStatus   @default(open)
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("alerts")
+}
+
+model WebhookDestination {
+  id            String    @id @default(cuid())
+  name          String
+  urlEncrypted  String    @map("url_encrypted")
+  enabled       Boolean   @default(true)
+  eventsJson    Json      @map("events_json")
+  lastSuccessAt DateTime? @map("last_success_at")
+  lastFailureAt DateTime? @map("last_failure_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@map("webhook_destinations")
+}
+
+model Deployment {
+  id           String           @id @default(cuid())
+  version      String
+  commitSha    String           @map("commit_sha")
+  status       DeploymentStatus @default(pending)
+  deployedById String?          @map("deployed_by")
+  deployedBy   User?            @relation("DeployedBy", fields: [deployedById], references: [id])
+  startedAt    DateTime?        @map("started_at")
+  finishedAt   DateTime?        @map("finished_at")
+  notes        String?
+
+  @@map("deployments")
+}
