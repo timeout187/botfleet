@@ -17,6 +17,28 @@ export function WorkloadActions({
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState(assignedAgentId ?? agents[0]?.id ?? "");
+  const [recommendation, setRecommendation] = useState<{
+    selectedAgentId: string | null;
+    reason: string;
+    candidates: { agentId: string; agentName: string; eligible: boolean; totalScore: number }[];
+  } | null>(null);
+
+  async function recommend() {
+    setPending("recommend");
+    setError(null);
+    setRecommendation(null);
+    const res = await fetch(`/api/admin/workloads/${workloadId}/schedule`, { method: "POST" });
+    const body = await res.json().catch(() => ({}));
+    setPending(null);
+    if (!res.ok) {
+      setError(body.error ?? "Failed to compute a recommendation");
+      return;
+    }
+    setRecommendation(body.decision);
+    if (body.decision.selectedAgentId) {
+      setSelectedAgent(body.decision.selectedAgentId);
+    }
+  }
 
   async function runCommand(command: "start" | "stop" | "restart") {
     setPending(command);
@@ -48,6 +70,24 @@ export function WorkloadActions({
 
   return (
     <div className="flex flex-col items-end gap-1">
+      <Button
+        variant="ghost"
+        disabled={pending !== null}
+        onClick={recommend}
+        className="text-xs"
+      >
+        {pending === "recommend" ? "Scoring…" : "Get recommendation"}
+      </Button>
+      {recommendation && (
+        <div className="max-w-xs rounded-lg border border-zinc-800 bg-zinc-950 p-2 text-right text-xs text-zinc-400">
+          <p className="text-zinc-300">{recommendation.reason}</p>
+          {recommendation.candidates.map((c) => (
+            <p key={c.agentId} className={c.eligible ? "" : "text-zinc-600 line-through"}>
+              {c.agentName}: {c.eligible ? c.totalScore : "ineligible"}
+            </p>
+          ))}
+        </div>
+      )}
       <div className="flex items-center gap-2">
         <select
           value={selectedAgent}

@@ -29,7 +29,12 @@ import { db } from "@/lib/db";
 import { consumeEnrollmentToken, restrictionsSatisfied } from "@/lib/agents/enrollment";
 import { agentCredentialProvider } from "@/lib/agents/credential";
 import { writeAuditLog } from "@/lib/audit";
-import { AgentStatus, AgentCommandStatus, Prisma } from "@/app/generated/prisma/client";
+import {
+  AgentStatus,
+  AgentCommandStatus,
+  WorkloadObservedState,
+  Prisma,
+} from "@/app/generated/prisma/client";
 import { getQueueConnection } from "@/lib/queue/connection";
 import {
   AGENT_COMMAND_QUEUE_NAME,
@@ -59,6 +64,10 @@ interface ConnectionState {
 
 type EnrollPayload = Extract<AgentToControlPlaneMessage, { type: "agent.enroll" }>["payload"];
 type HeartbeatPayload = Extract<AgentToControlPlaneMessage, { type: "agent.heartbeat" }>["payload"];
+type CommandResultPayload = Extract<
+  AgentToControlPlaneMessage,
+  { type: "agent.command_result" }
+>["payload"];
 
 const server = http.createServer((_req, res) => {
   res.writeHead(404);
@@ -171,19 +180,7 @@ async function handleMessage(ws: WebSocket, state: ConnectionState, raw: Buffer)
         .catch(() => {});
       break;
     case "agent.command_result":
-      await db.agentCommand
-        .updateMany({
-          where: { idempotencyKey: message.payload.idempotencyKey },
-          data:
-            message.payload.status === "succeeded"
-              ? { status: AgentCommandStatus.succeeded, completedAt: new Date() }
-              : {
-                  status: AgentCommandStatus.failed,
-                  failedAt: new Date(),
-                  safeError: message.payload.safeError ?? null,
-                },
-        })
-        .catch(() => {});
+      await handleCommandResult(message.payload);
       break;
     default:
       // agent.inventory/metrics and bot.*/shard.*/deployment.* messages
@@ -288,6 +285,55 @@ async function handleHeartbeat(state: ConnectionState, payload: HeartbeatPayload
       diskAvailableMb: payload.resources.diskAvailableMb,
     },
   });
+}
+
+/** Maps a completed command back to `AgentCommand.status` and, for
+ * workload-affecting command types, to `Workload.observedState` - this is
+ * the only place `observedState` is ever written, so it always reflects
+ * what an agent actually reported, never an assumption. */
+async function handleCommandResult(payload: CommandResultPayload): Promise<void> {
+  const command = await db.agentCommand.findUnique({
+    where: { idempotencyKey: payload.idempotencyKey },
+  });
+  if (!command) {
+    console.warn(`[agent-gateway] command_result for unknown idempotencyKey ${payload.idempotencyKey}`);
+    return;
+  }
+
+  const succeeded = payload.status === "succeeded";
+  await db.agentCommand.update({
+    where: { id: command.id },
+    data: succeeded
+      ? { status: AgentCommandStatus.succeeded, completedAt: new Date() }
+      : { status: AgentCommandStatus.failed, failedAt: new Date(), safeError: payload.safeError ?? null },
+  });
+
+  if (!command.workloadId) return;
+
+  const observedState = observedStateFor(command.commandType, succeeded);
+  if (!observedState) return;
+
+  const workload = await db.workload.findUnique({ where: { id: command.workloadId } });
+  if (!workload) return;
+
+  await db.workload.update({
+    where: { id: command.workloadId },
+    data: {
+      observedState,
+      observedGeneration: succeeded ? workload.generation : workload.observedGeneration,
+      lastTransitionAt: new Date(),
+    },
+  });
+}
+
+function observedStateFor(commandType: string, succeeded: boolean): WorkloadObservedState | null {
+  if (commandType === "bot.update") return null;
+  if (!succeeded) return WorkloadObservedState.failed;
+  if (commandType === "bot.stop") return WorkloadObservedState.stopped;
+  if (commandType === "bot.start" || commandType === "bot.restart") {
+    return WorkloadObservedState.running;
+  }
+  return null;
 }
 
 /**

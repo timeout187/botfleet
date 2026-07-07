@@ -55,7 +55,7 @@ async function recordAndEnqueueCommand(params: {
   commandType: string;
   payloadJson: unknown;
   message: unknown;
-  actorUserId: string;
+  actorUserId: string | null;
   idempotencyKey: string;
 }): Promise<void> {
   await db.agentCommand.create({
@@ -133,7 +133,7 @@ export type SendWorkloadCommandResult = { ok: true } | { ok: false; reason: stri
 export async function sendWorkloadCommand(
   workloadId: string,
   commandType: WorkloadCommandType,
-  actorUserId: string,
+  actorUserId: string | null,
 ): Promise<SendWorkloadCommandResult> {
   const workload = await db.workload.findUnique({ where: { id: workloadId } });
   if (!workload) return { ok: false, reason: "workload not found" };

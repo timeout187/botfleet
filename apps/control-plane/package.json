@@ -16,6 +16,7 @@
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",
     "@botfleet/protocol": "*",
+    "@botfleet/scheduler": "*",
     "@botfleet/workload-spec": "*",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",

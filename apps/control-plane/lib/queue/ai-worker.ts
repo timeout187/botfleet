@@ -17,6 +17,8 @@ import {
   SCHEDULER_QUEUE_NAME,
   EVALUATE_ALERTS_JOB_NAME,
   ensureAlertEvaluationScheduled,
+  RECONCILE_WORKLOADS_JOB_NAME,
+  ensureReconciliationScheduled,
 } from "@/lib/queue/scheduler-queue";
 import {
   RESTART_QUEUE_NAME,
@@ -24,6 +26,7 @@ import {
   type StaggeredRestartJobData,
 } from "@/lib/queue/restart-queue";
 import { evaluateAlertRules, type EvaluateAlertRulesResult } from "@/lib/alerts/evaluate-rules";
+import { reconcileWorkloads, type ReconciliationResult } from "@/lib/reconciliation";
 import { writeAuditLog } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { isMaintenanceModeEnabled } from "@/lib/system-state";
@@ -67,7 +70,10 @@ aiWorker.on("failed", (job, err) => {
   console.error(`[ai-worker] failed ${job?.id} (${job?.name}):`, err.message);
 });
 
-const schedulerWorker = new Worker<Record<string, never>, EvaluateAlertRulesResult>(
+const schedulerWorker = new Worker<
+  Record<string, never>,
+  EvaluateAlertRulesResult | ReconciliationResult
+>(
   SCHEDULER_QUEUE_NAME,
   async (job) => {
     switch (job.name) {
@@ -75,6 +81,10 @@ const schedulerWorker = new Worker<Record<string, never>, EvaluateAlertRulesResu
         // actorUserId is null here - this run wasn't triggered by a human,
         // and the audit log entry (action "alerts.evaluate") reflects that.
         return evaluateAlertRules(null);
+      case RECONCILE_WORKLOADS_JOB_NAME:
+        // Same reasoning: a self-healing pass, not a human action - any
+        // corrective bot.start/bot.stop it issues is audited with a null actor.
+        return reconcileWorkloads(null);
       default:
         throw new Error(`Unknown scheduled job type: ${job.name}`);
     }
@@ -155,9 +165,10 @@ restartWorker.on("failed", (job, err) => {
 
 void (async () => {
   await ensureAlertEvaluationScheduled();
+  await ensureReconciliationScheduled();
   console.log(`[ai-worker] listening on queue "${AI_QUEUE_NAME}"`);
   console.log(
-    `[scheduler-worker] listening on queue "${SCHEDULER_QUEUE_NAME}" (alert evaluation every 5 minutes)`,
+    `[scheduler-worker] listening on queue "${SCHEDULER_QUEUE_NAME}" (alert evaluation every 5 minutes, reconciliation every 30s)`,
   );
   console.log(`[restart-worker] listening on queue "${RESTART_QUEUE_NAME}"`);
 })();

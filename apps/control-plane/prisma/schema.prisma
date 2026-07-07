@@ -502,3 +502,21 @@ model AgentCommand {
   @@index([workloadId])
   @@map("agent_commands")
 }
+
+/// A recorded output of @botfleet/scheduler's scoring function - every
+/// candidate's eligibility/score breakdown, and which one (if any) was
+/// selected. `simulation: true` for a dry-run (the only mode that exists
+/// today - see docs/scheduler.md); recorded even for dry-runs so
+/// placement history is real, not just the applied ones.
+model PlacementDecision {
+  id                   String   @id @default(cuid())
+  workloadId           String   @map("workload_id")
+  selectedAgentId      String?  @map("selected_agent_id")
+  candidateSummaryJson Json     @map("candidate_summary_json")
+  reasonJson           Json     @map("reason_json")
+  simulation           Boolean  @default(true)
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  @@index([workloadId])
+  @@map("placement_decisions")
+}

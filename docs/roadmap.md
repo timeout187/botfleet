@@ -93,11 +93,39 @@ This is a large, multi-phase effort; status:
   with `SIGKILL` after its spec's grace period. 13 new tests (7 schema
   contract tests, 6 real-child-process tests including the SIGKILL path).
 
+- **Phase 8 - scheduler** (`packages/scheduler`, `@botfleet/scheduler`):
+  a pure, side-effect-free placement-scoring function (hard eligibility
+  filters - online status, capabilities, labels, memory, capacity,
+  environment - then weighted soft scoring - region, memory headroom,
+  load spread, customer anti-affinity, stability, recent-failure
+  penalty). Dry-run only by design: `lib/scheduling.ts`'s
+  `computeSchedulingRecommendation()` records a `PlacementDecision` row
+  but never assigns anything; an admin still applies a placement
+  explicitly via the existing `POST /api/admin/workloads/:id/assign`.
+  `WorkloadActions.tsx` gained a "Get recommendation" button showing the
+  full candidate score breakdown. See `docs/scheduler.md`. 16 unit tests
+  (`packages/scheduler/test/schedule.test.ts`), all passing - deterministic
+  and infra-free by construction, so every hard filter and soft
+  preference is tested in isolation.
+- **Phase 9 - reconciliation loop** (`lib/reconciliation.ts`): compares
+  each assigned workload's `desiredState` against its `observedState`
+  every 30 seconds (`lib/queue/scheduler-queue.ts`'s
+  `ensureReconciliationScheduled()`, run by the existing `worker:ai`
+  process) and re-issues a `start`/`stop` command when they disagree,
+  skipping any workload with a command already in flight. This also
+  closed a real gap from Phase 6-7: `Workload.observedState` was defined
+  in the schema but nothing ever wrote to it - `handleCommandResult()` in
+  `lib/agent-gateway/server.ts` now maps each `agent.command_result` to
+  the right observed state. See `docs/reconciliation.md` for the full
+  verification: a live agent actually spawning and killing a real child
+  process in response to a desynced state the loop detected and
+  corrected on its own schedule (not manually triggered), plus 4 real-DB
+  integration tests covering all four branches.
+
 **Not started yet** (remaining distributed-mission phases, roughly in the
 mission's own priority order): Docker runtime execution and `secretRef`
-resolution (both schema-validated, neither executed yet), the scheduler,
-the reconciliation loop,
-distributed drain/evacuation with fencing, deployment artifacts + rollout
+resolution (both schema-validated, neither executed yet),
+distributed drain/evacuation with fencing (Phase 10), deployment artifacts + rollout
 strategies, the fleet simulator, further dashboard UI (a Scheduler page,
 real-time updates), the CLI, observability
 (OpenTelemetry/Prometheus), expanded RBAC/approvals, the broader security
