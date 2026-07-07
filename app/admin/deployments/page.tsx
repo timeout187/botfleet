@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { TriggerDeploymentDialog } from "@/components/TriggerDeploymentDialog";
 
 const STATUS_VARIANT = {
   pending: "neutral",
@@ -19,11 +21,17 @@ export default async function DeploymentsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-zinc-50">Deployments</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-zinc-50">Deployments</h1>
+        <TriggerDeploymentDialog />
+      </div>
       <p className="text-sm text-zinc-500">
-        A record of what&apos;s deployed and when. Nothing here triggers a real deployment yet -
-        rollout automation (drain workers, staggered restarts, safe maintenance mode) is on the
-        roadmap; see <code className="text-zinc-400">docs/roadmap.md</code>.
+        Triggering a deployment runs every registered plugin&apos;s deployment hooks (see{" "}
+        <Link href="/admin/plugins" className="text-indigo-400 hover:text-indigo-300">
+          /admin/plugins
+        </Link>
+        ) and records the result. There&apos;s no process draining or staggered restart behind this
+        yet - see <code className="text-zinc-400">docs/roadmap.md</code>.
       </p>
 
       <Card>

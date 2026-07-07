@@ -101,6 +101,12 @@ Most Discord bot developers start with one bot. Once you have 10, 20, or 100
   at `/admin/plugins` - both call the same
   [`lib/alerts/evaluate-rules.ts`](./lib/alerts/evaluate-rules.ts) so
   there's exactly one code path, not two that could drift apart.
+- 🚀 **Deployment manager** - "Trigger deployment" at `/admin/deployments`
+  creates a real `Deployment` row and runs every registered plugin's
+  `beforeDeploy()`/`afterDeploy()` hook (see
+  [`lib/plugins/builtin/runner-plugins.ts`](./lib/plugins/builtin/runner-plugins.ts)),
+  transitioning `pending -> in_progress -> success/failed` for real, with
+  each hook writing its own audit log entry.
 
 **Explicitly stubbed, with clear `TODO(real-runner)` markers in the code:**
 
@@ -108,8 +114,8 @@ Most Discord bot developers start with one bot. Once you have 10, 20, or 100
   `RunnerAdapter` interface (PM2 and Docker adapters both exist) but don't
   yet spawn or control a real process. See
   [`lib/runner/pm2-adapter.ts`](./lib/runner/pm2-adapter.ts).
-- Deployments has a real read view over the `deployments` table, but
-  nothing triggers an actual deployment yet.
+- A triggered deployment runs plugin hooks but doesn't drain workers or
+  stagger restarts yet - see docs/roadmap.md.
 - Rebalancing only recommends - nothing moves automatically.
 - The AI worker's crash analysis is rule-based, not a real LLM call (see
   above) - it only runs when someone clicks "Explain this crash".

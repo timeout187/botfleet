@@ -35,6 +35,10 @@
   BullMQ repeatable job runs every alert rule every 5 minutes, sharing the
   exact same evaluation code (`lib/alerts/evaluate-rules.ts`) as the
   manual button at `/admin/plugins`.
+- Deployment manager actually triggers something: "Trigger deployment" at
+  `/admin/deployments` creates a real `Deployment` row and runs every
+  registered plugin's `beforeDeploy()`/`afterDeploy()` hook, transitioning
+  `pending -> in_progress -> success/failed` for real.
 
 ## Next
 
@@ -46,8 +50,10 @@
   plumbing is real today; `analyzeCrash()` is the one function that would
   change, and log summarization/anomaly detection would be new job types
   in the same queue.
-- **Deployment manager**: actually trigger a deploy (drain workers,
-  staggered restarts, safe maintenance mode) instead of only recording one.
+- **Drain workers / staggered restarts / safe maintenance mode** behind a
+  triggered deployment - the hook plumbing is real today, but no hook
+  actually pauses traffic or restarts bot processes yet (there's no real
+  process to restart until "Real process control" above lands).
 - **Automatic** rebalancing (today's recommendations require a manual click
   to apply, by design - see docs/security.md on why nothing acts without
   an admin's confirmation).

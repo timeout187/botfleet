@@ -37,6 +37,8 @@ resources owned by that user (`404` for anything not owned by you).
 | POST   | `/api/admin/alerts/evaluate`                   | -                                                                                        | Runs every alert rule; creates Alert rows for triggers   |
 | POST   | `/api/admin/bots/:id/explain-crash`            | -                                                                                        | Enqueues a crash-analysis job (422 if no recorded error) |
 | GET    | `/api/admin/ai/jobs/:jobId`                    | -                                                                                        | Poll a queued AI job's state/result                      |
+| GET    | `/api/admin/deployments`                       | -                                                                                        | List deployment history                                  |
+| POST   | `/api/admin/deployments`                       | `{ version, commitSha, notes? }`                                                         | Runs every plugin's deployment hooks; records the result |
 
 ## Customer API
 
