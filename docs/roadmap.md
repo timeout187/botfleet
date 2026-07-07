@@ -26,6 +26,11 @@
   cards, Security Center checks, alert rules, bot templates, and
   deployment hooks - 6 working built-in plugins ship today, browsable at
   `/admin/plugins`.
+- AI worker queue (`lib/queue/*`): a real BullMQ/Redis queue with a
+  separate worker process (`npm run worker:ai`), so analysis never blocks
+  a request handler. One working task ships - "explain this crash" - using
+  a rule-based analyzer (not an LLM call yet; see
+  `lib/queue/crash-analysis.ts` for why and how to swap one in).
 
 ## Next
 
@@ -33,10 +38,13 @@
   (`lib/runner/*`) with an actual worker process that decrypts a token
   in-memory and runs it under PM2 or inside a Docker container, then
   reports heartbeats back into `bot_health`/`shards`.
-- **AI worker queue**: log summarization, crash explanation, anomaly
-  detection - queued, advisory-only, never given raw tokens.
-- **Scheduled alert rule evaluation** (today it's a manual button at
-  `/admin/plugins` - a cron-style runner is the natural next step).
+- **A real LLM behind the AI worker queue** - the queue/worker/caching
+  plumbing is real today; `analyzeCrash()` is the one function that would
+  change, and log summarization/anomaly detection would be new job types
+  in the same queue.
+- **Scheduled alert rule evaluation and AI queue triggers** (today both are
+  manual buttons at `/admin/plugins` - a cron-style runner is the natural
+  next step for both).
 - **Deployment manager**: actually trigger a deploy (drain workers,
   staggered restarts, safe maintenance mode) instead of only recording one.
 - **Automatic** rebalancing (today's recommendations require a manual click

@@ -40,5 +40,17 @@ services:
       AUTH_URL: "${AUTH_URL:-http://localhost:3000}"
       BOTFLEET_ADMIN_DISCORD_IDS: "${BOTFLEET_ADMIN_DISCORD_IDS:-}"
 
+  worker-ai:
+    build: .
+    command: ["npm", "run", "worker:ai"]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://botfleet:botfleet@db:5432/botfleet"
+      REDIS_URL: "redis://redis:6379"
+      BOTFLEET_ENCRYPTION_KEY: "${BOTFLEET_ENCRYPTION_KEY:?set BOTFLEET_ENCRYPTION_KEY in your shell or .env}"
+
 volumes:
   botfleet-db:

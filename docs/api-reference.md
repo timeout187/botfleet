@@ -7,34 +7,36 @@ resources owned by that user (`404` for anything not owned by you).
 
 ## Admin API
 
-| Method | Path                                           | Body                                                                                     | Notes                                                   |
-| ------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| GET    | `/api/admin/fleet/overview`                    | -                                                                                        | Fleet-wide metrics                                      |
-| GET    | `/api/admin/bots`                              | -                                                                                        | List all bots                                           |
-| POST   | `/api/admin/bots`                              | `{ customerId, name, clientId, token, plan?, guildLimit?, shardCount?, workerGroupId? }` | Creates a bot; enforces plan limits                     |
-| GET    | `/api/admin/bots/:id`                          | -                                                                                        | Bot detail + health + shards                            |
-| PATCH  | `/api/admin/bots/:id`                          | Partial bot fields                                                                       | Re-checks plan limits if guildLimit/shardCount change   |
-| POST   | `/api/admin/bots/:id/start`                    | -                                                                                        | Via `RunnerAdapter` (stubbed, see docs/architecture.md) |
-| POST   | `/api/admin/bots/:id/stop`                     | -                                                                                        | Same                                                    |
-| POST   | `/api/admin/bots/:id/restart`                  | -                                                                                        | Same; increments restart count                          |
-| POST   | `/api/admin/bots/:id/rotate-token`             | `{ token }`                                                                              | Re-encrypts in place                                    |
-| GET    | `/api/admin/customers`                         | -                                                                                        | List customers                                          |
-| POST   | `/api/admin/customers`                         | `{ name, plan? }`                                                                        |                                                         |
-| GET    | `/api/admin/workers`                           | -                                                                                        | List workers                                            |
-| POST   | `/api/admin/workers`                           | `{ name, mode?, host?, maxBots? }`                                                       |                                                         |
-| POST   | `/api/admin/workers/:id/restart`               | -                                                                                        | Status transition only today                            |
-| GET    | `/api/admin/logs?targetType=&targetId=&limit=` | -                                                                                        | Audit log                                               |
-| GET    | `/api/admin/alerts?status=&limit=`             | -                                                                                        | Alert history                                           |
-| GET    | `/api/admin/webhooks`                          | -                                                                                        | List Discord alert destinations                         |
-| POST   | `/api/admin/webhooks`                          | `{ name, url, events? }`                                                                 | URL is encrypted at rest                                |
-| DELETE | `/api/admin/webhooks/:id`                      | -                                                                                        |                                                         |
-| POST   | `/api/admin/alerts/test`                       | `{ webhookId }`                                                                          | Sends a real Discord embed, mass mentions disabled      |
-| GET    | `/api/admin/security`                          | -                                                                                        | Real, computed security report                          |
-| GET    | `/api/admin/users`                             | -                                                                                        | List users and roles                                    |
-| PATCH  | `/api/admin/users/:id`                         | `{ role }`                                                                               | Owner-only; refuses to demote the last remaining owner  |
-| GET    | `/api/admin/workers/rebalance`                 | -                                                                                        | Rebalancing recommendations (read-only, nothing moves)  |
-| GET    | `/api/admin/plugins`                           | -                                                                                        | List registered plugins and what they contribute        |
-| POST   | `/api/admin/alerts/evaluate`                   | -                                                                                        | Runs every alert rule; creates Alert rows for triggers  |
+| Method | Path                                           | Body                                                                                     | Notes                                                    |
+| ------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| GET    | `/api/admin/fleet/overview`                    | -                                                                                        | Fleet-wide metrics                                       |
+| GET    | `/api/admin/bots`                              | -                                                                                        | List all bots                                            |
+| POST   | `/api/admin/bots`                              | `{ customerId, name, clientId, token, plan?, guildLimit?, shardCount?, workerGroupId? }` | Creates a bot; enforces plan limits                      |
+| GET    | `/api/admin/bots/:id`                          | -                                                                                        | Bot detail + health + shards                             |
+| PATCH  | `/api/admin/bots/:id`                          | Partial bot fields                                                                       | Re-checks plan limits if guildLimit/shardCount change    |
+| POST   | `/api/admin/bots/:id/start`                    | -                                                                                        | Via `RunnerAdapter` (stubbed, see docs/architecture.md)  |
+| POST   | `/api/admin/bots/:id/stop`                     | -                                                                                        | Same                                                     |
+| POST   | `/api/admin/bots/:id/restart`                  | -                                                                                        | Same; increments restart count                           |
+| POST   | `/api/admin/bots/:id/rotate-token`             | `{ token }`                                                                              | Re-encrypts in place                                     |
+| GET    | `/api/admin/customers`                         | -                                                                                        | List customers                                           |
+| POST   | `/api/admin/customers`                         | `{ name, plan? }`                                                                        |                                                          |
+| GET    | `/api/admin/workers`                           | -                                                                                        | List workers                                             |
+| POST   | `/api/admin/workers`                           | `{ name, mode?, host?, maxBots? }`                                                       |                                                          |
+| POST   | `/api/admin/workers/:id/restart`               | -                                                                                        | Status transition only today                             |
+| GET    | `/api/admin/logs?targetType=&targetId=&limit=` | -                                                                                        | Audit log                                                |
+| GET    | `/api/admin/alerts?status=&limit=`             | -                                                                                        | Alert history                                            |
+| GET    | `/api/admin/webhooks`                          | -                                                                                        | List Discord alert destinations                          |
+| POST   | `/api/admin/webhooks`                          | `{ name, url, events? }`                                                                 | URL is encrypted at rest                                 |
+| DELETE | `/api/admin/webhooks/:id`                      | -                                                                                        |                                                          |
+| POST   | `/api/admin/alerts/test`                       | `{ webhookId }`                                                                          | Sends a real Discord embed, mass mentions disabled       |
+| GET    | `/api/admin/security`                          | -                                                                                        | Real, computed security report                           |
+| GET    | `/api/admin/users`                             | -                                                                                        | List users and roles                                     |
+| PATCH  | `/api/admin/users/:id`                         | `{ role }`                                                                               | Owner-only; refuses to demote the last remaining owner   |
+| GET    | `/api/admin/workers/rebalance`                 | -                                                                                        | Rebalancing recommendations (read-only, nothing moves)   |
+| GET    | `/api/admin/plugins`                           | -                                                                                        | List registered plugins and what they contribute         |
+| POST   | `/api/admin/alerts/evaluate`                   | -                                                                                        | Runs every alert rule; creates Alert rows for triggers   |
+| POST   | `/api/admin/bots/:id/explain-crash`            | -                                                                                        | Enqueues a crash-analysis job (422 if no recorded error) |
+| GET    | `/api/admin/ai/jobs/:jobId`                    | -                                                                                        | Poll a queued AI job's state/result                      |
 
 ## Customer API
 

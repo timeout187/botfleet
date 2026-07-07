@@ -85,6 +85,16 @@ Most Discord bot developers start with one bot. Once you have 10, 20, or 100
   PM2/Docker runner deployment hooks, two alert rules evaluated against
   live bot health, a Node.js version health check, and discord.js/Eris bot
   templates) - browse them at `/admin/plugins`.
+- 🤖 **AI worker queue** - a real BullMQ/Redis queue
+  ([`lib/queue/`](./lib/queue/)), consumed by a separate worker process
+  (`npm run worker:ai`) so analysis never blocks a request handler. Ships
+  with one working task, "explain this crash" (a button on the bot detail
+  page), which is genuinely queued/cached/advisory but uses a small,
+  honest rule-based analyzer (not an LLM call - see
+  [`lib/queue/crash-analysis.ts`](./lib/queue/crash-analysis.ts) for
+  exactly why, and how to swap in a real one later without touching the
+  queue or API routes). The job payload is only ever a bot ID and an
+  already-redacted error string - never a token.
 
 **Explicitly stubbed, with clear `TODO(real-runner)` markers in the code:**
 
@@ -97,10 +107,9 @@ Most Discord bot developers start with one bot. Once you have 10, 20, or 100
 - Rebalancing only recommends - nothing moves automatically.
 - Alert rules run on demand (a button at `/admin/plugins`), not on a
   schedule yet.
-
-**Not built yet** (tracked in [`docs/roadmap.md`](./docs/roadmap.md)):
-
-- AI worker queue.
+- The AI worker's crash analysis is rule-based, not a real LLM call (see
+  above) - and there is no scheduled runner yet, so it only runs when
+  someone clicks "Explain this crash".
 
 ## Architecture
 
@@ -181,8 +190,10 @@ export $(grep -v '^#' .env | xargs)
 docker compose up --build -d
 ```
 
-Runs the app, Postgres, and Redis (reserved for a future AI worker queue,
-not wired up yet) in containers; migrations run automatically on start.
+Runs the app, Postgres, Redis, and the AI worker (`worker-ai`) in
+containers; migrations run automatically on the app container's start. If
+`worker-ai` starts before migrations finish, it'll crash-loop briefly and
+recover once the `app` container has migrated - restart policy handles it.
 
 ## Security model
 

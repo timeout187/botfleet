@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { botStatusVariant, formatStatusLabel, shardStatusVariant } from "@/components/status";
 import { BotActions } from "@/components/BotActions";
 import { ChangeWorkerSelect } from "@/components/ChangeWorkerSelect";
+import { ExplainCrashButton } from "@/components/ExplainCrashButton";
 
 export default async function BotDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -57,6 +58,11 @@ export default async function BotDetailPage({ params }: { params: Promise<{ id: 
             />
             <Row label="Last safe error" value={bot.health?.lastErrorSafe ?? "None"} />
           </dl>
+          {bot.health?.lastErrorSafe && (
+            <div className="mt-4 border-t border-zinc-900 pt-4">
+              <ExplainCrashButton botId={bot.id} />
+            </div>
+          )}
         </Card>
 
         <Card>
