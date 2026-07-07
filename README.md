@@ -78,6 +78,13 @@ Most Discord bot developers start with one bot. Once you have 10, 20, or 100
   algorithm (`lib/rebalance.ts`) flags unassigned bots and over-capacity
   workers and recommends specific moves; applying one is a click away on
   the bot's detail page.
+- 🧩 **Plugin system** - a real extension point
+  ([`lib/plugins/types.ts`](./lib/plugins/types.ts)) for dashboard cards,
+  Security Center checks, alert rules, bot templates, and deployment
+  hooks. Ships with 6 working built-in plugins (Redis connectivity card,
+  PM2/Docker runner deployment hooks, two alert rules evaluated against
+  live bot health, a Node.js version health check, and discord.js/Eris bot
+  templates) - browse them at `/admin/plugins`.
 
 **Explicitly stubbed, with clear `TODO(real-runner)` markers in the code:**
 
@@ -88,10 +95,12 @@ Most Discord bot developers start with one bot. Once you have 10, 20, or 100
 - Deployments has a real read view over the `deployments` table, but
   nothing triggers an actual deployment yet.
 - Rebalancing only recommends - nothing moves automatically.
+- Alert rules run on demand (a button at `/admin/plugins`), not on a
+  schedule yet.
 
 **Not built yet** (tracked in [`docs/roadmap.md`](./docs/roadmap.md)):
 
-- Plugin system, AI worker queue.
+- AI worker queue.
 
 ## Architecture
 

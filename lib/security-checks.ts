@@ -178,6 +178,11 @@ export async function runSecurityChecks(): Promise<SecurityReport> {
         },
   );
 
+  const { ensureBuiltinPluginsRegistered, getAllHealthChecks } = await import("@/lib/plugins");
+  ensureBuiltinPluginsRegistered();
+  const pluginChecks = await Promise.all(getAllHealthChecks().map((c) => c.run()));
+  checks.push(...pluginChecks);
+
   const passCount = checks.filter((c) => c.status === "pass").length;
   const score = Math.round((passCount / checks.length) * 100);
 

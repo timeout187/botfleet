@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: "/admin/alerts", label: "Alerts" },
   { href: "/admin/status", label: "Status" },
   { href: "/admin/security", label: "Security" },
+  { href: "/admin/plugins", label: "Plugins" },
   { href: "/admin/settings", label: "Settings" },
 ];
 

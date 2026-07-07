@@ -5,10 +5,13 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { botStatusVariant, formatStatusLabel } from "@/components/status";
 import { hoursAgo } from "@/lib/time";
+import { ensureBuiltinPluginsRegistered, getAllDashboardCards } from "@/lib/plugins";
 import Link from "next/link";
 
 export default async function FleetOverviewPage() {
   const since24h = hoursAgo(24);
+  ensureBuiltinPluginsRegistered();
+  const pluginCards = await Promise.all(getAllDashboardCards().map((c) => c.render()));
 
   const [
     totalBots,
@@ -60,6 +63,9 @@ export default async function FleetOverviewPage() {
           value={errors24h}
           tone={errors24h > 0 ? "danger" : "success"}
         />
+        {pluginCards.map((card, i) => (
+          <StatCard key={i} label={card.label} value={card.value} tone={card.tone} />
+        ))}
       </div>
 
       <Card>

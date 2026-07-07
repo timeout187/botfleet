@@ -22,6 +22,10 @@
 - Worker rebalancing recommendations (`lib/rebalance.ts`): a real algorithm
   flags unassigned bots and over-capacity workers; applying a move is one
   click on the bot's detail page (nothing moves automatically).
+- Plugin system (`lib/plugins/*`): a real extension point for dashboard
+  cards, Security Center checks, alert rules, bot templates, and
+  deployment hooks - 6 working built-in plugins ship today, browsable at
+  `/admin/plugins`.
 
 ## Next
 
@@ -29,10 +33,10 @@
   (`lib/runner/*`) with an actual worker process that decrypts a token
   in-memory and runs it under PM2 or inside a Docker container, then
   reports heartbeats back into `bot_health`/`shards`.
-- **Plugin system**: health checks, dashboard cards, alert rules, bot
-  templates, deployment hooks as a real extension point.
 - **AI worker queue**: log summarization, crash explanation, anomaly
   detection - queued, advisory-only, never given raw tokens.
+- **Scheduled alert rule evaluation** (today it's a manual button at
+  `/admin/plugins` - a cron-style runner is the natural next step).
 - **Deployment manager**: actually trigger a deploy (drain workers,
   staggered restarts, safe maintenance mode) instead of only recording one.
 - **Automatic** rebalancing (today's recommendations require a manual click

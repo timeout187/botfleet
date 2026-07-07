@@ -33,6 +33,8 @@ resources owned by that user (`404` for anything not owned by you).
 | GET    | `/api/admin/users`                             | -                                                                                        | List users and roles                                    |
 | PATCH  | `/api/admin/users/:id`                         | `{ role }`                                                                               | Owner-only; refuses to demote the last remaining owner  |
 | GET    | `/api/admin/workers/rebalance`                 | -                                                                                        | Rebalancing recommendations (read-only, nothing moves)  |
+| GET    | `/api/admin/plugins`                           | -                                                                                        | List registered plugins and what they contribute        |
+| POST   | `/api/admin/alerts/evaluate`                   | -                                                                                        | Runs every alert rule; creates Alert rows for triggers  |
 
 ## Customer API
 
