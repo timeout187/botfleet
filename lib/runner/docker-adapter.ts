@@ -1,17 +1,29 @@
 import { db } from "@/lib/db";
 import { BotStatus } from "@/app/generated/prisma/client";
+import { decryptSecret } from "@/lib/crypto";
 import type { RunnerAdapter } from "@/lib/runner/types";
+import {
+  dockerStartBotContainer,
+  dockerStopBotContainer,
+  dockerRestartBotContainer,
+} from "@/lib/runner/docker-client";
 
 /**
- * DOCKER_ADAPTER_NOTES:
- * A real implementation would run one container per bot (or per worker group,
- * with multiple bot client processes inside), using the Docker Engine API
- * (e.g. dockerode) to create/start/stop/restart a container named by bot id,
- * mounting nothing but an in-memory-decrypted token as an env var passed at
- * container start (never written to disk, never logged).
+ * Spawns a real Docker container per bot (lib/runner/docker-client.ts,
+ * using dockerode) running worker-runtime/bot-process.js - the same
+ * placeholder client the PM2 adapter uses (see that file's header
+ * comment). Build the image once with:
+ *   docker build -t botfleet-worker-runtime:latest ./worker-runtime
  *
- * TODO(real-runner): replace the setStatus() calls below with real Docker
- * Engine API calls once container orchestration is wired up.
+ * NOTE: this adapter's logic was implemented and typechecked, but could
+ * NOT be run end-to-end in the sandbox this was built in - that
+ * environment's network policy blocks pulling the node:20-slim base
+ * image from Docker Hub (`docker build` fails with a 403 on the CDN),
+ * even though the Docker daemon itself runs fine there. The PM2 adapter
+ * (lib/runner/pm2-adapter.ts) uses the identical pattern and was verified
+ * end-to-end (a real process spawned, emitted heartbeats, and was cleanly
+ * torn down) - verify this adapter the same way in an environment with
+ * normal Docker Hub access before relying on it.
  */
 async function setStatus(botId: string, status: (typeof BotStatus)[keyof typeof BotStatus]) {
   await db.bot.update({ where: { id: botId }, data: { status } });
@@ -26,18 +38,25 @@ export const dockerAdapter: RunnerAdapter = {
   mode: "docker",
   async start(botId) {
     await setStatus(botId, BotStatus.starting);
-    // TODO(real-runner): docker.createContainer(...) + container.start()
+    const bot = await db.bot.findUniqueOrThrow({ where: { id: botId } });
+    const token = decryptSecret(bot.tokenEncrypted);
+    await dockerStartBotContainer(botId, { BOTFLEET_BOT_ID: botId, BOTFLEET_BOT_TOKEN: token });
     await setStatus(botId, BotStatus.online);
   },
   async stop(botId) {
     await setStatus(botId, BotStatus.stopping);
-    // TODO(real-runner): container.stop()
+    await dockerStopBotContainer(botId);
     await setStatus(botId, BotStatus.offline);
   },
   async restart(botId) {
     await setStatus(botId, BotStatus.stopping);
-    // TODO(real-runner): container.restart()
-    await setStatus(botId, BotStatus.starting);
+    try {
+      await dockerRestartBotContainer(botId);
+    } catch {
+      const bot = await db.bot.findUniqueOrThrow({ where: { id: botId } });
+      const token = decryptSecret(bot.tokenEncrypted);
+      await dockerStartBotContainer(botId, { BOTFLEET_BOT_ID: botId, BOTFLEET_BOT_TOKEN: token });
+    }
     await setStatus(botId, BotStatus.online);
   },
 };

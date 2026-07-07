@@ -39,21 +39,31 @@
   `/admin/deployments` creates a real `Deployment` row and runs every
   registered plugin's `beforeDeploy()`/`afterDeploy()` hook, transitioning
   `pending -> in_progress -> success/failed` for real.
+- Real process control, PM2 mode (`lib/runner/pm2-adapter.ts`): start/stop/
+  restart spawns/stops/restarts an actual OS process per bot via the `pm2`
+  package, with the token decrypted in-memory and passed as an env var.
+  Verified end-to-end (real PID, real heartbeat logs, clean teardown).
+  Docker mode (`lib/runner/docker-adapter.ts`) is implemented identically
+  via `dockerode` but wasn't verified end-to-end in the sandbox this was
+  built in (Docker Hub pulls are blocked there) - see docs/architecture.md.
 
 ## Next
 
-- **Real process control**: replace the `RunnerAdapter` stubs
-  (`lib/runner/*`) with an actual worker process that decrypts a token
-  in-memory and runs it under PM2 or inside a Docker container, then
-  reports heartbeats back into `bot_health`/`shards`.
+- **A real Discord client behind the runner** - both runner adapters spawn
+  `worker-runtime/bot-process.js`, a placeholder that doesn't actually
+  connect to Discord (no real bot token available to build/test against).
+  Swapping it for a real discord.js/Eris client (see
+  `lib/plugins/builtin/bot-templates.ts`) and reporting readiness back into
+  `bot_health`/`shards` is the natural next step.
+- **Verify the Docker runner end-to-end** in an environment with normal
+  Docker Hub access.
 - **A real LLM behind the AI worker queue** - the queue/worker/caching
   plumbing is real today; `analyzeCrash()` is the one function that would
   change, and log summarization/anomaly detection would be new job types
   in the same queue.
 - **Drain workers / staggered restarts / safe maintenance mode** behind a
   triggered deployment - the hook plumbing is real today, but no hook
-  actually pauses traffic or restarts bot processes yet (there's no real
-  process to restart until "Real process control" above lands).
+  actually pauses traffic yet.
 - **Automatic** rebalancing (today's recommendations require a manual click
   to apply, by design - see docs/security.md on why nothing acts without
   an admin's confirmation).

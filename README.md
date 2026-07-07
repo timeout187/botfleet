@@ -107,13 +107,28 @@ Most Discord bot developers start with one bot. Once you have 10, 20, or 100
   [`lib/plugins/builtin/runner-plugins.ts`](./lib/plugins/builtin/runner-plugins.ts)),
   transitioning `pending -> in_progress -> success/failed` for real, with
   each hook writing its own audit log entry.
+- ⚙️ **Real process control (PM2 mode)** - `/admin/bots/:id` start/stop/
+  restart actually spawns/stops/restarts a real OS process per bot via the
+  `pm2` npm package (see
+  [`lib/runner/pm2-adapter.ts`](./lib/runner/pm2-adapter.ts)), with the
+  bot's token decrypted in-memory and passed as an env var, never logged.
+  Verified end-to-end: a real process came up (visible in `pm2 list` with
+  an actual PID), emitted heartbeat logs, and was cleanly torn down.
 
-**Explicitly stubbed, with clear `TODO(real-runner)` markers in the code:**
+**Explicitly stubbed / not fully verified here, said plainly:**
 
-- Bot start/stop/restart today update status in the database through a
-  `RunnerAdapter` interface (PM2 and Docker adapters both exist) but don't
-  yet spawn or control a real process. See
-  [`lib/runner/pm2-adapter.ts`](./lib/runner/pm2-adapter.ts).
+- **Docker mode**'s runner ([`lib/runner/docker-adapter.ts`](./lib/runner/docker-adapter.ts))
+  is implemented the same way as PM2 mode using `dockerode`, and the
+  client's connection to a real Docker daemon was verified - but the full
+  create-container flow couldn't be run end-to-end in this sandbox
+  (its network policy blocks pulling `node:20-slim` from Docker Hub).
+  Verify with `npm run worker:build-image` in an environment with normal
+  registry access before relying on it.
+- The placeholder `worker-runtime/bot-process.js` process is not a real
+  discord.js/Eris client - see
+  [`lib/plugins/builtin/bot-templates.ts`](./lib/plugins/builtin/bot-templates.ts)
+  for what a real one looks like; wiring one in is the natural next step
+  (it just needs a real Discord bot token to test against).
 - A triggered deployment runs plugin hooks but doesn't drain workers or
   stagger restarts yet - see docs/roadmap.md.
 - Rebalancing only recommends - nothing moves automatically.

@@ -54,18 +54,43 @@ prisma/schema.prisma       The full data model
 - `Deployment` - a record of what's deployed (not yet wired to an actual
   deploy pipeline).
 
-## Why bot start/stop/restart don't control a real process yet
+## Real process control
 
 `lib/runner/types.ts` defines a `RunnerAdapter` interface with
-`start`/`stop`/`restart`. `pm2-adapter.ts` and `docker-adapter.ts` both
-implement it today by updating `Bot.status`/`BotHealth` directly - they
-don't spawn or control anything. Every method has a `TODO(real-runner)`
-comment describing exactly what a real implementation needs (a worker
-process that decrypts the token in-memory and either runs it under PM2 or
-inside a Docker container). The rest of the product - dashboard actions,
-audit logging, alerts, rebalancing recommendations - is built against the
-interface, so wiring in a real runner later doesn't require changing any
-caller.
+`start`/`stop`/`restart`. Both implementations decrypt the bot's token
+in-memory (never logged, never written to disk) and pass it as an env var
+to a spawned `worker-runtime/bot-process.js` process - a placeholder
+client (see that file's header comment for why: it's not a real
+discord.js/Eris client, since building/testing against a live Discord
+gateway needs a real bot token this project doesn't have and shouldn't
+fabricate).
+
+- **PM2 adapter** (`lib/runner/pm2-adapter.ts` + `pm2-client.ts`): uses the
+  `pm2` npm package's programmatic API to actually spawn/stop/restart an OS
+  process per bot, named `botfleet-bot-<id>`. **Verified end-to-end**: a
+  real process was started (confirmed via `pm2 list` showing an `online`
+  status and a real PID), its heartbeat log lines were observed via
+  `pm2 logs`, and it was cleanly stopped and removed.
+- **Docker adapter** (`lib/runner/docker-adapter.ts` + `docker-client.ts`):
+  uses `dockerode` to create/start/stop/restart a container per bot from
+  the `botfleet-worker-runtime` image (`npm run worker:build-image`
+  builds it from `worker-runtime/Dockerfile`). The `dockerode` client's
+  connection to the Docker daemon was verified directly (`docker.info()`
+  and `listContainers()` both succeeded against a live daemon), but the
+  full create-container flow could **not** be run end-to-end in the
+  sandbox this was built in - that environment's network policy blocks
+  pulling `node:20-slim` from Docker Hub. Verify this adapter with a real
+  `docker build` + start/stop cycle before relying on it in production.
+- Both `pm2` and `dockerode` are marked `serverExternalPackages` in
+  `next.config.ts` - both packages do dynamic `require()`s (native
+  bindings, a bundled terminal UI) that break webpack/turbopack's static
+  bundling otherwise.
+
+Note that running either adapter for real requires the app process to
+have the corresponding runtime available: a PM2 daemon it can spawn/talk
+to, or access to a Docker socket (mount `/var/run/docker.sock` into the
+`app` container if you want the Docker adapter to work from inside
+Compose).
 
 ## Worker rebalancing
 

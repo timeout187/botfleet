@@ -1,18 +1,21 @@
 import { db } from "@/lib/db";
 import { BotStatus } from "@/app/generated/prisma/client";
+import { decryptSecret } from "@/lib/crypto";
 import type { RunnerAdapter } from "@/lib/runner/types";
+import {
+  pm2StartBotProcess,
+  pm2StopProcess,
+  pm2DeleteProcess,
+  pm2RestartProcess,
+} from "@/lib/runner/pm2-client";
 
 /**
- * PM2_ADAPTER_NOTES:
- * A real implementation would shell out to (or use the `pm2` npm API for)
- * `pm2 start ecosystem.<botId>.config.js`, `pm2 stop <name>`, `pm2 restart <name>`,
- * with one PM2 process per bot client (named by bot id) inside the worker
- * this bot is assigned to. That requires the worker process itself to run
- * this code (not the Next.js web process), decrypt the token in-memory only,
- * and report heartbeats back via the workers/bot_health tables.
- *
- * TODO(real-runner): replace the setStatus() calls below with actual `pm2`
- * process control once a worker runtime exists to host it.
+ * Spawns a real OS process per bot via PM2's programmatic API
+ * (lib/runner/pm2-client.ts), running worker-runtime/bot-process.js - a
+ * placeholder client (see that file's header comment for exactly why it's
+ * not a real discord.js/Eris client). The bot's token is decrypted
+ * in-memory right here and passed as an env var to the spawned process;
+ * it is never logged or written to disk by this module.
  */
 async function setStatus(botId: string, status: (typeof BotStatus)[keyof typeof BotStatus]) {
   await db.bot.update({ where: { id: botId }, data: { status } });
@@ -23,22 +26,42 @@ async function setStatus(botId: string, status: (typeof BotStatus)[keyof typeof 
   });
 }
 
+function processName(botId: string): string {
+  return `botfleet-bot-${botId}`;
+}
+
 export const pm2Adapter: RunnerAdapter = {
   mode: "pm2",
   async start(botId) {
     await setStatus(botId, BotStatus.starting);
-    // TODO(real-runner): pm2.start(...)
+    const bot = await db.bot.findUniqueOrThrow({ where: { id: botId } });
+    const token = decryptSecret(bot.tokenEncrypted);
+    await pm2StartBotProcess(processName(botId), {
+      BOTFLEET_BOT_ID: botId,
+      BOTFLEET_BOT_TOKEN: token,
+    });
     await setStatus(botId, BotStatus.online);
   },
   async stop(botId) {
     await setStatus(botId, BotStatus.stopping);
-    // TODO(real-runner): pm2.stop(...)
+    await pm2StopProcess(processName(botId));
+    await pm2DeleteProcess(processName(botId));
     await setStatus(botId, BotStatus.offline);
   },
   async restart(botId) {
     await setStatus(botId, BotStatus.stopping);
-    // TODO(real-runner): pm2.restart(...)
-    await setStatus(botId, BotStatus.starting);
+    try {
+      await pm2RestartProcess(processName(botId));
+    } catch {
+      // Nothing running under this name yet (e.g. never started before) -
+      // fall back to a fresh start rather than erroring out.
+      const bot = await db.bot.findUniqueOrThrow({ where: { id: botId } });
+      const token = decryptSecret(bot.tokenEncrypted);
+      await pm2StartBotProcess(processName(botId), {
+        BOTFLEET_BOT_ID: botId,
+        BOTFLEET_BOT_TOKEN: token,
+      });
+    }
     await setStatus(botId, BotStatus.online);
   },
 };

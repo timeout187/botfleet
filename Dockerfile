@@ -27,6 +27,7 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/app/generated ./app/generated
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
+COPY --from=builder /app/worker-runtime ./worker-runtime
 USER botfleet
 EXPOSE 3000
 CMD ["sh", "-c", "npx prisma migrate deploy && npm run start"]

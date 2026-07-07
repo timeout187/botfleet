@@ -13,6 +13,10 @@ const CSP = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  // pm2 and dockerode both do dynamic requires (native bindings, a bundled
+  // terminal UI) that break when webpack/turbopack tries to statically
+  // bundle them into a route handler - keep them as real Node requires.
+  serverExternalPackages: ["pm2", "dockerode"],
   async headers() {
     return [
       {
