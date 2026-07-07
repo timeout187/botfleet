@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace @botfleet/control-plane",
-    "build": "npm run build --workspace @botfleet/control-plane",
+    "build": "npm run build --workspace @botfleet/protocol && npm run build --workspace @botfleet/control-plane",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",

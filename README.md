@@ -22,6 +22,15 @@ logs, alerts, and customer limits from one dashboard.
 > setup, and a mock-data seed script are all built and verified against a
 > real Postgres database. See "Features" below for exactly what's real vs.
 > stubbed vs. not built yet. Nothing here fakes metrics, stars, or usage.
+>
+> **This repo is also becoming a real distributed control plane** (agents
+> on remote servers, a versioned protocol, scheduling, reconciliation) -
+> see `docs/distributed-audit.md` for the honest baseline this started
+> from and `docs/roadmap.md` for what's shipped vs. not started yet. The
+> repo is now an npm workspace: `apps/control-plane` is everything
+> described below; `packages/protocol` is the first piece of the
+> distributed layer (a versioned message catalog, see
+> `docs/protocol-reference.md`).
 
 ## Why BotFleet
 

@@ -4,7 +4,52 @@
 > `apps/control-plane/` - see `docs/distributed-audit.md` for the
 > workspace conversion.
 
-## Shipped
+## Distributed control plane mission
+
+BotFleet is being extended from the single-node dashboard described below
+into a real distributed control plane (agents on remote servers, a
+versioned protocol, scheduling, reconciliation, secure enrollment - see
+`docs/distributed-audit.md` for the full mission and honest baseline).
+This is a large, multi-phase effort; status:
+
+**Shipped:**
+
+- **Phase 0 - audit** (`docs/distributed-audit.md`): baseline
+  install/lint/typecheck/build all green, confirmed **no automated test
+  suite existed anywhere in the repo before this mission**, and documented
+  that "workers" today are purely descriptive DB rows - every runner
+  adapter always executes locally, there is no actual distribution yet.
+- **Phase 1 - npm workspace** (`apps/*`, `packages/*`): the existing app
+  moved to `apps/control-plane` with git history preserved; root scripts
+  (`dev`/`build`/`lint`/`typecheck`/`test`/`verify`) delegate to each
+  workspace. Verified: fresh install, full `npm run verify`, migrations,
+  `worker:ai`, and `npm run dev` all work from the new layout.
+- **Phase 2 - protocol package** (`packages/protocol`, `@botfleet/protocol`):
+  a versioned, Zod-validated message catalog for both directions
+  (`AgentToControlPlane`/`ControlPlaneToAgent` - see
+  `docs/protocol-reference.md` for the full catalog), envelope validation
+  that never throws on malformed/unversioned/unknown input, a replay
+  guard, and this repo's first real test suite (Vitest, 18 contract tests:
+  valid parses, every malformed-input rejection path, payload size caps,
+  full catalog completeness against the mission's specified message list).
+  This package is also where `npm run test`/`test:integration`/`test:e2e`
+  and `npm run verify` first became real commands rather than no-ops.
+
+**Not started yet** (remaining distributed-mission phases, roughly in the
+mission's own priority order): the remote agent process + secure
+enrollment, the runtime SDK + discord.js/Eris adapters, the versioned
+workload specification, the distributed Agent/Workload/AgentCommand data
+model, the scheduler, the reconciliation loop, distributed drain/evacuation
+with fencing, deployment artifacts + rollout strategies, the fleet
+simulator, dashboard UI additions (Agents/Workloads/Scheduler pages,
+real-time updates), the CLI, observability (OpenTelemetry/Prometheus),
+expanded RBAC/approvals, the broader security test suite, and the
+acceptance-test demo script. Each will be added to "Shipped" above with
+its own verification notes as it actually lands - none of it is claimed
+done until it's real and tested, per this project's own conventions (see
+CONTRIBUTING.md).
+
+## Shipped (single-node dashboard, pre-distributed-mission)
 
 - Data model (Prisma + Postgres): users/accounts/sessions, customers, bots,
   bot health, workers, worker assignments, shards, audit logs, alerts,
@@ -77,7 +122,7 @@
   restarted real PM2 processes, and re-enqueuing under maintenance mode
   produced the expected "skipped" result for every job instead.
 
-## Next
+## Next (single-node dashboard gaps, distinct from the distributed-mission phases above)
 
 - **A real Discord client behind the runner** - both runner adapters spawn
   `worker-runtime/bot-process.js`, a placeholder that doesn't actually
