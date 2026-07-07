@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { workerStatusVariant, formatStatusLabel } from "@/components/status";
 import { CreateWorkerDialog } from "@/components/CreateWorkerDialog";
 import { WorkerRestartButton } from "@/components/WorkerRestartButton";
+import { WorkerDrainButton } from "@/components/WorkerDrainButton";
 import { computeRebalanceRecommendations } from "@/lib/rebalance";
 
 export default async function WorkersPage() {
@@ -21,6 +22,7 @@ export default async function WorkersPage() {
       name: w.name,
       maxBots: w.maxBots,
       currentBots: w.currentBots,
+      status: w.status,
     })),
     bots,
   );
@@ -59,8 +61,9 @@ export default async function WorkersPage() {
                 <dd className="text-zinc-200">{w.cpuPercent ?? "—"}%</dd>
               </div>
             </dl>
-            <div className="mt-4">
+            <div className="mt-4 flex gap-2">
               <WorkerRestartButton workerId={w.id} />
+              <WorkerDrainButton workerId={w.id} />
             </div>
           </Card>
         ))}

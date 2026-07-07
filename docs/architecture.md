@@ -95,11 +95,21 @@ Compose).
 ## Worker rebalancing
 
 `lib/rebalance.ts` is a pure function: given the current workers and bots,
-it recommends (a) assigning any unassigned bot to the least-loaded worker
-with spare capacity, and (b) moving bots off any worker that's over its
-`maxBots`. It never moves anything itself - an admin applies a
-recommendation from the bot's detail page, which calls
+it recommends (a) assigning any unassigned bot to the least-loaded
+_online_ worker with spare capacity, and (b) moving bots off any worker
+that's over its effective capacity. A worker's effective capacity is its
+`maxBots` normally, but 0 if it's `draining` or `failed` - so every one of
+a draining worker's bots gets a move recommendation for free. The
+recommendations panel on `/admin/workers` never moves anything itself -
+an admin applies one from the bot's detail page, which calls
 `PATCH /api/admin/bots/:id` with a new `workerGroupId`.
+
+`lib/workers/drain.ts` builds on the same function to make "Drain" on
+`/admin/workers` a real action: it sets the worker's status to `draining`,
+computes recommendations, and actually applies every move via
+`setBotWorker()` (not just reporting them). Bots that have nowhere to go
+are left in place and returned as "stranded" rather than silently dropped
+or erroring out - draining a worker never loses track of a bot.
 
 ## Plugin system
 

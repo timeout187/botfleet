@@ -46,6 +46,15 @@
   Docker mode (`lib/runner/docker-adapter.ts`) is implemented identically
   via `dockerode` but wasn't verified end-to-end in the sandbox this was
   built in (Docker Hub pulls are blocked there) - see docs/architecture.md.
+- Worker draining (`lib/workers/drain.ts`): "Drain" on `/admin/workers`
+  actually moves every bot off a worker onto other online workers with
+  spare capacity (reusing `lib/rebalance.ts` - a draining worker's
+  effective capacity is treated as 0), then marks it `offline` once empty.
+  Bots that can't be moved (no capacity anywhere) are left in place and
+  reported as "stranded" rather than silently failing. Verified end-to-end
+  against the live database, including a case where global fleet demand
+  (a separate unassigned bot) legitimately competed for the same target
+  capacity - the algorithm's choice was correct, not a bug.
 
 ## Next
 
@@ -61,9 +70,9 @@
   plumbing is real today; `analyzeCrash()` is the one function that would
   change, and log summarization/anomaly detection would be new job types
   in the same queue.
-- **Drain workers / staggered restarts / safe maintenance mode** behind a
-  triggered deployment - the hook plumbing is real today, but no hook
-  actually pauses traffic yet.
+- **Staggered restarts / safe maintenance mode** behind a triggered
+  deployment - the hook plumbing and worker draining are both real today,
+  but a deployment doesn't yet restart bots itself.
 - **Automatic** rebalancing (today's recommendations require a manual click
   to apply, by design - see docs/security.md on why nothing acts without
   an admin's confirmation).

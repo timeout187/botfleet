@@ -8,7 +8,9 @@ export async function GET() {
   if (!guard.ok) return guard.response;
 
   const [workers, bots] = await Promise.all([
-    db.worker.findMany({ select: { id: true, name: true, maxBots: true, currentBots: true } }),
+    db.worker.findMany({
+      select: { id: true, name: true, maxBots: true, currentBots: true, status: true },
+    }),
     db.bot.findMany({ select: { id: true, name: true, workerGroupId: true } }),
   ]);
 

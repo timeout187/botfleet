@@ -114,6 +114,11 @@ Most Discord bot developers start with one bot. Once you have 10, 20, or 100
   bot's token decrypted in-memory and passed as an env var, never logged.
   Verified end-to-end: a real process came up (visible in `pm2 list` with
   an actual PID), emitted heartbeat logs, and was cleanly torn down.
+- 🧹 **Worker draining** - "Drain" on `/admin/workers`
+  ([`lib/workers/drain.ts`](./lib/workers/drain.ts)) actually moves every
+  bot off a worker onto other online workers with spare capacity (reusing
+  the rebalance algorithm), then marks it offline once empty. Bots that
+  can't be moved are reported as "stranded", not silently dropped.
 
 **Explicitly stubbed / not fully verified here, said plainly:**
 
