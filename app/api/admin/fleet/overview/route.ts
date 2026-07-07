@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/require-admin";
 import { db } from "@/lib/db";
 import { BotStatus, WorkerStatus, AlertSeverity } from "@/app/generated/prisma/client";
+import { hoursAgo } from "@/lib/time";
 
 export async function GET() {
   const guard = await requireAdmin();
   if (!guard.ok) return guard.response;
 
-  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const since24h = hoursAgo(24);
 
   const [
     totalBots,
