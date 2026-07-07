@@ -72,15 +72,34 @@ This is a large, multi-phase effort; status:
   and attributed to the right `agentId`. The adapters are each tested
   against a real `discord.js`/`Eris` client instance with events emitted
   directly (no token available in this sandbox to reach a live gateway).
+- **Phase 6-7 - workload spec + real execution + data model**
+  (`packages/workload-spec`, `Workload`/`AgentCommand` Prisma models,
+  `apps/agent/src/workload-runner.ts`, `lib/workloads.ts`,
+  `/admin/workloads`): a versioned, Zod-validated spec (command+args as
+  an argv array, never a shell string - see `docs/workload-spec.md`) an
+  admin creates and assigns to an agent, which actually executes it as a
+  real `child_process.spawn()` OS process. Commands cross from the
+  Next.js API process to the separate agent-gateway process (which owns
+  live WebSocket connections) via a new BullMQ queue
+  (`lib/queue/agent-command-queue.ts`), the same pattern `worker:ai`
+  already uses for a different cross-process problem. Every command is a
+  durable `AgentCommand` row moved through
+  `pending -> accepted -> succeeded/failed` by the agent's own ack/result
+  messages. Verified end-to-end against a live database and real running
+  processes: creating a workload, assigning it to a real enrolled agent,
+  and issuing start produced a real child process (real PID, real stdout
+  output); stop sent a real `SIGTERM` and the process actually exited;
+  a separate test confirmed an unresponsive process gets force-killed
+  with `SIGKILL` after its spec's grace period. 13 new tests (7 schema
+  contract tests, 6 real-child-process tests including the SIGKILL path).
 
 **Not started yet** (remaining distributed-mission phases, roughly in the
-mission's own priority order): the versioned workload specification,
-the rest of the distributed data model (Workload/AgentCommand/
-WorkloadEvent/etc - only Agent/AgentCredential/EnrollmentToken exist so
-far), the scheduler, the reconciliation loop,
+mission's own priority order): Docker runtime execution and `secretRef`
+resolution (both schema-validated, neither executed yet), the scheduler,
+the reconciliation loop,
 distributed drain/evacuation with fencing, deployment artifacts + rollout
-strategies, the fleet simulator, further dashboard UI (Workloads/Scheduler
-pages, real-time updates), the CLI, observability
+strategies, the fleet simulator, further dashboard UI (a Scheduler page,
+real-time updates), the CLI, observability
 (OpenTelemetry/Prometheus), expanded RBAC/approvals, the broader security
 test suite, and the acceptance-test demo script. Each will be added to
 "Shipped" above with its own verification notes as it actually lands -

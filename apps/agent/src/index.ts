@@ -17,11 +17,13 @@ import {
   parseControlPlaneToAgentMessage,
   PROTOCOL_VERSION,
   type AgentToControlPlaneType,
+  type ControlPlaneToAgentMessage,
 } from "@botfleet/protocol";
 import { loadConfig } from "./config";
 import { loadState, saveState } from "./state";
 import { sampleResources } from "./resources";
 import { startLocalIpcServer } from "./local-ipc";
+import { cacheWorkloadSpec, startWorkload, stopWorkload, restartWorkload } from "./workload-runner";
 
 const config = loadConfig();
 
@@ -100,16 +102,26 @@ function connect(): void {
       return;
     }
     const message = result.message;
-    if (message.type === "agent.accepted") {
-      agentId = message.payload.agentId;
-      if (message.payload.credentialSecret) {
-        saveState(config.stateFilePath, {
-          agentId: message.payload.agentId,
-          credentialSecret: message.payload.credentialSecret,
-        });
-        log(`enrolled as agent ${agentId}`);
-      }
-      startHeartbeatLoop();
+    switch (message.type) {
+      case "agent.accepted":
+        agentId = message.payload.agentId;
+        if (message.payload.credentialSecret) {
+          saveState(config.stateFilePath, {
+            agentId: message.payload.agentId,
+            credentialSecret: message.payload.credentialSecret,
+          });
+          log(`enrolled as agent ${agentId}`);
+        }
+        startHeartbeatLoop();
+        break;
+      case "bot.update":
+      case "bot.start":
+      case "bot.stop":
+      case "bot.restart":
+        void handleWorkloadCommand(message);
+        break;
+      default:
+        log(`received "${message.type}" (not yet handled by this agent)`);
     }
   });
 
@@ -175,6 +187,57 @@ function forwardBotMessage(type: AgentToControlPlaneType, payload: unknown): voi
     payload,
   };
   ws.send(JSON.stringify(message));
+}
+
+type WorkloadCommandMessage = Extract<
+  ControlPlaneToAgentMessage,
+  { type: "bot.update" | "bot.start" | "bot.stop" | "bot.restart" }
+>;
+
+/**
+ * Acks receipt immediately (`agent.command_ack`), then executes the
+ * command against ./workload-runner.ts's real child-process runner and
+ * reports the outcome (`agent.command_result`). Every command carries an
+ * `idempotencyKey` the control plane can match back to its own
+ * `AgentCommand` row - this agent doesn't track command IDs itself
+ * beyond echoing that key back.
+ */
+async function handleWorkloadCommand(message: WorkloadCommandMessage): Promise<void> {
+  const { workloadId, botId, idempotencyKey } = message.payload;
+
+  forwardBotMessage("agent.command_ack", {
+    agentId,
+    commandId: idempotencyKey,
+    idempotencyKey,
+  });
+
+  let result: { ok: boolean; error?: string };
+  switch (message.type) {
+    case "bot.update":
+      result = cacheWorkloadSpec(workloadId, botId, message.payload.specification);
+      break;
+    case "bot.start":
+      result = startWorkload(workloadId);
+      break;
+    case "bot.stop":
+      result = await stopWorkload(workloadId);
+      break;
+    case "bot.restart":
+      result = await restartWorkload(workloadId);
+      break;
+  }
+
+  if (!result.ok) {
+    log(`command "${message.type}" for workload ${workloadId} failed: ${result.error}`);
+  }
+
+  forwardBotMessage("agent.command_result", {
+    agentId,
+    commandId: idempotencyKey,
+    idempotencyKey,
+    status: result.ok ? "succeeded" : "failed",
+    safeError: result.error,
+  });
 }
 
 function shutdown(): void {

@@ -44,6 +44,10 @@ resources owned by that user (`404` for anything not owned by you).
 | PATCH  | `/api/admin/system-state`                      | `{ maintenanceMode }`                                                                    | Toggles maintenance mode; audit-logged                                                 |
 | GET    | `/api/admin/agents`                            | -                                                                                        | List enrolled agents (see docs/agent-enrollment.md)                                    |
 | POST   | `/api/admin/agents/enrollment-tokens`          | `{ environment?, requiredLabels?, ttlMinutes? }`                                         | Returns the plaintext token once; only its hash is ever stored                         |
+| GET    | `/api/admin/workloads`                         | -                                                                                        | List workloads (see docs/workload-spec.md)                                             |
+| POST   | `/api/admin/workloads`                         | `{ botId, specification }`                                                               | Validates the spec via `@botfleet/workload-spec` before storing it                     |
+| POST   | `/api/admin/workloads/:id/assign`              | `{ agentId }`                                                                            | Pushes the spec to the agent via a real `bot.update` command                           |
+| POST   | `/api/admin/workloads/:id/command`             | `{ command: "start" \| "stop" \| "restart" }`                                            | Sends a real command; the agent spawns/stops a real OS process                         |
 
 ## Customer API
 

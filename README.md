@@ -39,6 +39,11 @@ logs, alerts, and customer limits from one dashboard.
 > path - never a control-plane credential) report status through its
 > agent, verified end-to-end with a real running agent/gateway and a real
 > `discord.js`/`Eris` client - see `docs/runtime-sdk.md`.
+> `packages/workload-spec` (`docs/workload-spec.md`) is a versioned,
+> validated spec (command+args as an argv array - never a shell string)
+> an admin assigns to an agent, which really executes it: verified
+> end-to-end with a real spawned OS process, a real `SIGTERM` shutdown,
+> and a real `SIGKILL` force-kill after its grace period.
 
 ## Why BotFleet
 

@@ -108,6 +108,28 @@ enum AgentCredentialStatus {
   expired
 }
 
+enum WorkloadDesiredState {
+  running
+  stopped
+}
+
+enum WorkloadObservedState {
+  unknown
+  pending
+  starting
+  running
+  stopping
+  stopped
+  failed
+}
+
+enum AgentCommandStatus {
+  pending
+  accepted
+  succeeded
+  failed
+}
+
 // User fields split in two groups:
 // - name/email/emailVerified/image are populated by @auth/prisma-adapter
 //   from the Discord OAuth profile (Auth.js's standard adapter contract).
@@ -130,6 +152,7 @@ model User {
   auditLogs        AuditLog[]
   deployments      Deployment[]      @relation("DeployedBy")
   enrollmentTokens EnrollmentToken[]
+  agentCommands    AgentCommand[]
 
   @@map("users")
 }
@@ -210,6 +233,7 @@ model Bot {
   health      BotHealth?
   shards      Shard[]
   assignments WorkerAssignment[]
+  workload    Workload?
 
   @@index([customerId])
   @@index([workerGroupId])
@@ -379,7 +403,9 @@ model Agent {
   createdAt         DateTime    @default(now()) @map("created_at")
   updatedAt         DateTime    @updatedAt @map("updated_at")
 
-  credentials AgentCredential[]
+  credentials       AgentCredential[]
+  assignedWorkloads Workload[]
+  commands          AgentCommand[]
 
   @@index([status])
   @@map("agents")
@@ -417,4 +443,62 @@ model EnrollmentToken {
   createdAt        DateTime  @default(now()) @map("created_at")
 
   @@map("enrollment_tokens")
+}
+
+/// A bot's desired-vs-observed running state on a specific agent, and the
+/// validated spec (@botfleet/workload-spec) describing how to run it.
+/// `generation`/`observedGeneration` let a future reconciliation loop
+/// tell "the spec changed but the agent hasn't caught up yet" apart from
+/// "the agent is already running the current spec" - not yet consumed by
+/// anything (no reconciliation loop exists yet), but recorded from the
+/// start so that loop doesn't need a schema migration to use them.
+model Workload {
+  id                   String                @id @default(cuid())
+  botId                String                @unique @map("bot_id")
+  bot                  Bot                   @relation(fields: [botId], references: [id], onDelete: Cascade)
+  specificationJson    Json                  @map("specification_json")
+  specificationVersion String                @map("specification_version")
+  desiredState         WorkloadDesiredState  @default(stopped) @map("desired_state")
+  observedState        WorkloadObservedState @default(unknown) @map("observed_state")
+  assignedAgentId      String?               @map("assigned_agent_id")
+  assignedAgent        Agent?                @relation(fields: [assignedAgentId], references: [id])
+  generation           Int                   @default(1)
+  observedGeneration   Int                   @default(0) @map("observed_generation")
+  lastTransitionAt     DateTime?             @map("last_transition_at")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+
+  commands AgentCommand[]
+
+  @@index([assignedAgentId])
+  @@map("workloads")
+}
+
+/// A single start/stop/restart command sent to an agent - the durable
+/// record behind the `idempotencyKey` every ControlPlaneToAgent command
+/// message carries (@botfleet/protocol). `status` is only ever advanced
+/// by the agent's own `agent.command_ack`/`agent.command_result`
+/// messages (lib/agent-gateway/server.ts), never guessed at by the
+/// control plane.
+model AgentCommand {
+  id             String             @id @default(cuid())
+  agentId        String             @map("agent_id")
+  agent          Agent              @relation(fields: [agentId], references: [id])
+  workloadId     String?            @map("workload_id")
+  workload       Workload?          @relation(fields: [workloadId], references: [id])
+  commandType    String             @map("command_type")
+  payloadJson    Json               @map("payload_json")
+  status         AgentCommandStatus @default(pending)
+  idempotencyKey String             @unique @map("idempotency_key")
+  createdById    String?            @map("created_by_id")
+  createdBy      User?              @relation(fields: [createdById], references: [id])
+  createdAt      DateTime           @default(now()) @map("created_at")
+  acceptedAt     DateTime?          @map("accepted_at")
+  completedAt    DateTime?          @map("completed_at")
+  failedAt       DateTime?          @map("failed_at")
+  safeError      String?            @map("safe_error")
+
+  @@index([agentId])
+  @@index([workloadId])
+  @@map("agent_commands")
 }

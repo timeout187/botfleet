@@ -16,6 +16,7 @@
  */
 import "dotenv/config";
 import http from "node:http";
+import { Worker } from "bullmq";
 import { WebSocketServer, type WebSocket } from "ws";
 import {
   parseAgentToControlPlaneMessage,
@@ -28,13 +29,27 @@ import { db } from "@/lib/db";
 import { consumeEnrollmentToken, restrictionsSatisfied } from "@/lib/agents/enrollment";
 import { agentCredentialProvider } from "@/lib/agents/credential";
 import { writeAuditLog } from "@/lib/audit";
-import { AgentStatus, Prisma } from "@/app/generated/prisma/client";
+import { AgentStatus, AgentCommandStatus, Prisma } from "@/app/generated/prisma/client";
+import { getQueueConnection } from "@/lib/queue/connection";
+import {
+  AGENT_COMMAND_QUEUE_NAME,
+  type AgentCommandJobData,
+} from "@/lib/queue/agent-command-queue";
 
 const PORT = Number(process.env.AGENT_GATEWAY_PORT ?? 4010);
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const HEARTBEAT_TIMEOUT_MS = 45_000;
 
 const replayGuard = new InMemoryReplayGuard();
+
+/**
+ * Live WebSocket connections, keyed by agentId - this is the piece that
+ * lets a command created in the Next.js API process (a different OS
+ * process from this one) actually reach a specific agent: the API route
+ * enqueues a job on AGENT_COMMAND_QUEUE_NAME, and the Worker below (this
+ * process) looks up the connection here and sends over it.
+ */
+const liveConnections = new Map<string, WebSocket>();
 
 interface ConnectionState {
   agentId: string | null;
@@ -77,6 +92,10 @@ server.on("upgrade", async (request, socket, head) => {
 });
 
 wss.on("connection", (ws: WebSocket, state: ConnectionState) => {
+  if (state.authenticated && state.agentId) {
+    liveConnections.set(state.agentId, ws);
+  }
+
   const heartbeatMonitor = setInterval(() => {
     void checkHeartbeatTimeout(state);
   }, HEARTBEAT_INTERVAL_MS);
@@ -88,6 +107,9 @@ wss.on("connection", (ws: WebSocket, state: ConnectionState) => {
   ws.on("close", () => {
     clearInterval(heartbeatMonitor);
     if (state.agentId) {
+      if (liveConnections.get(state.agentId) === ws) {
+        liveConnections.delete(state.agentId);
+      }
       db.agent
         .update({ where: { id: state.agentId }, data: { status: AgentStatus.disconnected } })
         .catch(() => {});
@@ -137,10 +159,36 @@ async function handleMessage(ws: WebSocket, state: ConnectionState, raw: Buffer)
     case "agent.heartbeat":
       await handleHeartbeat(state, message.payload);
       break;
+    case "agent.command_ack":
+      await db.agentCommand
+        .updateMany({
+          where: {
+            idempotencyKey: message.payload.idempotencyKey,
+            status: AgentCommandStatus.pending,
+          },
+          data: { status: AgentCommandStatus.accepted, acceptedAt: new Date() },
+        })
+        .catch(() => {});
+      break;
+    case "agent.command_result":
+      await db.agentCommand
+        .updateMany({
+          where: { idempotencyKey: message.payload.idempotencyKey },
+          data:
+            message.payload.status === "succeeded"
+              ? { status: AgentCommandStatus.succeeded, completedAt: new Date() }
+              : {
+                  status: AgentCommandStatus.failed,
+                  failedAt: new Date(),
+                  safeError: message.payload.safeError ?? null,
+                },
+        })
+        .catch(() => {});
+      break;
     default:
-      // agent.inventory/metrics/command_ack/command_result and bot.*/shard.*/
-      // deployment.* messages are handled once the scheduler/reconciliation
-      // phases exist to act on them - logged, not silently dropped.
+      // agent.inventory/metrics and bot.*/shard.*/deployment.* messages
+      // are handled once the scheduler/reconciliation phases exist to act
+      // on them - logged, not silently dropped.
       console.log(
         `[agent-gateway] received "${message.type}" from ${state.agentId} (not yet handled)`,
       );
@@ -203,6 +251,7 @@ async function handleEnroll(
   state.agentId = agent.id;
   state.authenticated = true;
   state.lastHeartbeatAt = Date.now();
+  liveConnections.set(agent.id, ws);
 
   const accepted = createControlPlaneToAgentMessage(
     {
@@ -241,6 +290,42 @@ async function handleHeartbeat(state: ConnectionState, payload: HeartbeatPayload
   });
 }
 
+/**
+ * Consumes commands enqueued by API routes (a different OS process) and
+ * delivers them to the target agent's live connection, if it has one.
+ * Marks the AgentCommand failed immediately (rather than leaving it
+ * `pending` forever) when the agent isn't currently connected - a real,
+ * observable outcome instead of a silent no-op.
+ */
+const commandWorker = new Worker<AgentCommandJobData>(
+  AGENT_COMMAND_QUEUE_NAME,
+  async (job) => {
+    const ws = liveConnections.get(job.data.agentId);
+    if (!ws || ws.readyState !== ws.OPEN) {
+      const payload = job.data.message as { payload?: { idempotencyKey?: string } };
+      await db.agentCommand
+        .updateMany({
+          where: { idempotencyKey: payload.payload?.idempotencyKey },
+          data: {
+            status: AgentCommandStatus.failed,
+            failedAt: new Date(),
+            safeError: "Agent is not currently connected",
+          },
+        })
+        .catch(() => {});
+      return { delivered: false };
+    }
+    ws.send(JSON.stringify(job.data.message));
+    return { delivered: true };
+  },
+  { connection: getQueueConnection(), concurrency: 5 },
+);
+
+commandWorker.on("failed", (job, err) => {
+  console.error(`[agent-gateway] command dispatch failed for job ${job?.id}:`, err.message);
+});
+
 server.listen(PORT, () => {
   console.log(`[agent-gateway] listening on :${PORT}`);
+  console.log(`[agent-gateway] command dispatcher listening on "${AGENT_COMMAND_QUEUE_NAME}"`);
 });

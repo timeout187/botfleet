@@ -213,6 +213,28 @@ agent gateway above. `packages/adapter-discordjs` and
 lifecycle events into the runtime automatically, so bot code doesn't have
 to call `runtime.ready()`/`heartbeat()` by hand for the common cases.
 
+## Workload spec and execution
+
+`packages/workload-spec` (`@botfleet/workload-spec`) is the versioned,
+Zod-validated description of how to run a bot - see
+`docs/workload-spec.md` for the full schema and its single most important
+guarantee (`command`/`args` is always an argv array, never a shell
+string - no command-injection surface by construction). `Workload` and
+`AgentCommand` (Prisma models) are the durable records behind it: a
+workload's desired/observed state and assigned agent, and every
+start/stop/restart command's `idempotencyKey`/status lifecycle.
+
+`lib/workloads.ts` is the only way a spec reaches an agent:
+`createWorkload()` validates before storing, `assignWorkloadToAgent()`
+sends a real `bot.update` command, `sendWorkloadCommand()` sends
+`bot.start`/`stop`/`restart`. Commands cross from the Next.js API process
+to the agent-gateway process (which owns the live WebSocket connections)
+via `lib/queue/agent-command-queue.ts`, a BullMQ queue - the same
+cross-process problem `worker:ai` solves, reused rather than inventing a
+second mechanism. `apps/agent/src/workload-runner.ts` is what actually
+executes a workload: a real `child_process.spawn()` per bot, tracked in
+memory by workload ID, with a real grace-period-then-SIGKILL shutdown.
+
 ## Auth model
 
 - Admin/owner: promoted via `BOTFLEET_ADMIN_DISCORD_IDS` on first Discord
