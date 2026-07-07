@@ -33,7 +33,10 @@ export default async function FleetOverviewPage() {
     db.worker.aggregate({ _sum: { memoryMb: true } }),
     db.botHealth.aggregate({ _sum: { restartCount: true } }),
     db.alert.count({
-      where: { createdAt: { gte: since24h }, severity: { in: [AlertSeverity.error, AlertSeverity.critical] } },
+      where: {
+        createdAt: { gte: since24h },
+        severity: { in: [AlertSeverity.error, AlertSeverity.critical] },
+      },
     }),
     db.bot.findMany({ orderBy: { updatedAt: "desc" }, take: 6, include: { customer: true } }),
   ]);
@@ -69,7 +72,11 @@ export default async function FleetOverviewPage() {
         <div className="divide-y divide-zinc-800">
           {recentBots.length === 0 && (
             <p className="py-6 text-center text-sm text-zinc-500">
-              No bots yet. <Link href="/admin/bots" className="text-indigo-400">Add your first one</Link>.
+              No bots yet.{" "}
+              <Link href="/admin/bots" className="text-indigo-400">
+                Add your first one
+              </Link>
+              .
             </p>
           )}
           {recentBots.map((bot) => (

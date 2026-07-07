@@ -13,7 +13,10 @@ export async function POST(request: Request) {
 
   const parsed = testAlertSchema.safeParse(await request.json());
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid request", details: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid request", details: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
 
   const webhook = await db.webhookDestination.findUnique({ where: { id: parsed.data.webhookId } });
@@ -21,7 +24,8 @@ export async function POST(request: Request) {
 
   const result = await sendDiscordAlert(webhook.urlEncrypted, {
     title: "BotFleet test alert",
-    message: "This is a test alert from BotFleet's Security & Alerts settings. Mass mentions are always disabled.",
+    message:
+      "This is a test alert from BotFleet's Security & Alerts settings. Mass mentions are always disabled.",
     severity: "info",
   });
 

@@ -18,7 +18,9 @@ export default async function BotDetailPage({ params }: { params: Promise<{ id: 
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-zinc-50">{bot.name}</h1>
-          <p className="text-sm text-zinc-500">{bot.customer.name} · client ID {bot.clientId}</p>
+          <p className="text-sm text-zinc-500">
+            {bot.customer.name} · client ID {bot.clientId}
+          </p>
         </div>
         <Badge variant={botStatusVariant(bot.status)}>{formatStatusLabel(bot.status)}</Badge>
       </div>
@@ -41,8 +43,14 @@ export default async function BotDetailPage({ params }: { params: Promise<{ id: 
             <Row label="Ping" value={bot.health?.pingMs ? `${bot.health.pingMs}ms` : "—"} />
             <Row label="Memory" value={bot.health?.memoryMb ? `${bot.health.memoryMb} MB` : "—"} />
             <Row label="Restart count" value={String(bot.health?.restartCount ?? 0)} />
-            <Row label="Last ready" value={bot.lastReadyAt ? new Date(bot.lastReadyAt).toLocaleString() : "—"} />
-            <Row label="Last heartbeat" value={bot.lastHeartbeatAt ? new Date(bot.lastHeartbeatAt).toLocaleString() : "—"} />
+            <Row
+              label="Last ready"
+              value={bot.lastReadyAt ? new Date(bot.lastReadyAt).toLocaleString() : "—"}
+            />
+            <Row
+              label="Last heartbeat"
+              value={bot.lastHeartbeatAt ? new Date(bot.lastHeartbeatAt).toLocaleString() : "—"}
+            />
             <Row label="Last safe error" value={bot.health?.lastErrorSafe ?? "None"} />
           </dl>
         </Card>
@@ -66,8 +74,8 @@ export default async function BotDetailPage({ params }: { params: Promise<{ id: 
         </CardHeader>
         {bot.shards.length === 0 ? (
           <p className="text-sm text-zinc-500">
-            No shard rows yet - single-process bots don&apos;t need sharding until they approach 2,500
-            guilds. See docs/architecture.md.
+            No shard rows yet - single-process bots don&apos;t need sharding until they approach
+            2,500 guilds. See docs/architecture.md.
           </p>
         ) : (
           <table className="w-full text-left text-sm">
@@ -84,7 +92,9 @@ export default async function BotDetailPage({ params }: { params: Promise<{ id: 
                 <tr key={s.id}>
                   <td className="py-2">{s.shardId}</td>
                   <td className="py-2">
-                    <Badge variant={shardStatusVariant(s.status)}>{formatStatusLabel(s.status)}</Badge>
+                    <Badge variant={shardStatusVariant(s.status)}>
+                      {formatStatusLabel(s.status)}
+                    </Badge>
                   </td>
                   <td className="py-2 text-zinc-400">{s.guildCount}</td>
                   <td className="py-2 text-zinc-400">{s.pingMs ? `${s.pingMs}ms` : "—"}</td>

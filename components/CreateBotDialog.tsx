@@ -7,11 +7,7 @@ import { Button } from "@/components/ui/button";
 
 const PLANS = ["free", "starter", "pro", "enterprise"] as const;
 
-export function CreateBotDialog({
-  customers,
-}: {
-  customers: { id: string; name: string }[];
-}) {
+export function CreateBotDialog({ customers }: { customers: { id: string; name: string }[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);

@@ -49,10 +49,18 @@ export default async function SecurityPage() {
               </div>
               <Badge
                 variant={
-                  check.status === "pass" ? "success" : check.status === "warn" ? "warning" : "danger"
+                  check.status === "pass"
+                    ? "success"
+                    : check.status === "warn"
+                      ? "warning"
+                      : "danger"
                 }
               >
-                {check.status === "pass" ? "Pass" : check.status === "warn" ? "Warning" : "Action required"}
+                {check.status === "pass"
+                  ? "Pass"
+                  : check.status === "warn"
+                    ? "Warning"
+                    : "Action required"}
               </Badge>
             </div>
           ))}

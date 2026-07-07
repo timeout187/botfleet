@@ -23,7 +23,8 @@ export function AdminSidebar() {
     <nav className="flex h-full w-56 flex-col gap-1 border-r border-zinc-800 bg-zinc-950/60 p-4">
       <div className="mb-4 px-2 text-lg font-semibold tracking-tight text-zinc-50">BotFleet</div>
       {NAV_ITEMS.map((item) => {
-        const active = item.href === "/admin" ? pathname === item.href : pathname.startsWith(item.href);
+        const active =
+          item.href === "/admin" ? pathname === item.href : pathname.startsWith(item.href);
         return (
           <Link
             key={item.href}

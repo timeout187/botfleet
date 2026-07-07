@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: botfleet
+      POSTGRES_PASSWORD: botfleet
+      POSTGRES_DB: botfleet
+    volumes:
+      - botfleet-db:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U botfleet"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: "postgresql://botfleet:botfleet@db:5432/botfleet"
+      REDIS_URL: "redis://redis:6379"
+      BOTFLEET_ENCRYPTION_KEY: "${BOTFLEET_ENCRYPTION_KEY:?set BOTFLEET_ENCRYPTION_KEY in your shell or .env}"
+      AUTH_DISCORD_ID: "${AUTH_DISCORD_ID:?set AUTH_DISCORD_ID}"
+      AUTH_DISCORD_SECRET: "${AUTH_DISCORD_SECRET:?set AUTH_DISCORD_SECRET}"
+      AUTH_SECRET: "${AUTH_SECRET:?set AUTH_SECRET}"
+      AUTH_URL: "${AUTH_URL:-http://localhost:3000}"
+      BOTFLEET_ADMIN_DISCORD_IDS: "${BOTFLEET_ADMIN_DISCORD_IDS:-}"
+
+volumes:
+  botfleet-db:

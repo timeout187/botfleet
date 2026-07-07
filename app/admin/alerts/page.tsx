@@ -55,7 +55,9 @@ export default async function AlertsPage() {
                 <div className="font-medium text-zinc-200">{a.title}</div>
                 <div className="text-xs text-zinc-500">{a.message}</div>
               </div>
-              <Badge variant={alertSeverityVariant(a.severity)}>{formatStatusLabel(a.severity)}</Badge>
+              <Badge variant={alertSeverityVariant(a.severity)}>
+                {formatStatusLabel(a.severity)}
+              </Badge>
             </div>
           ))}
           {alerts.length === 0 && (

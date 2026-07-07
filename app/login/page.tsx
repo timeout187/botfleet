@@ -29,8 +29,9 @@ export default async function LoginPage() {
           </button>
         </form>
         <p className="mt-6 text-xs text-zinc-500">
-          Only Discord accounts listed in <code className="text-zinc-400">BOTFLEET_ADMIN_DISCORD_IDS</code>{" "}
-          are granted admin access on first sign-in.
+          Only Discord accounts listed in{" "}
+          <code className="text-zinc-400">BOTFLEET_ADMIN_DISCORD_IDS</code> are granted admin access
+          on first sign-in.
         </p>
       </div>
     </div>

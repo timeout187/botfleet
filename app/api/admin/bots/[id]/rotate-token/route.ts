@@ -17,7 +17,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const parsed = rotateTokenSchema.safeParse(await request.json());
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid request", details: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid request", details: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
 
   await db.bot.update({

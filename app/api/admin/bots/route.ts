@@ -5,7 +5,12 @@ import { db } from "@/lib/db";
 import { encryptSecret } from "@/lib/crypto";
 import { writeAuditLog } from "@/lib/audit";
 import { serializeBot } from "@/lib/serialize";
-import { assertBotCountWithinPlan, assertGuildLimitWithinPlan, assertShardCountWithinPlan, PlanLimitError } from "@/lib/plans";
+import {
+  assertBotCountWithinPlan,
+  assertGuildLimitWithinPlan,
+  assertShardCountWithinPlan,
+  PlanLimitError,
+} from "@/lib/plans";
 import { PlanTier } from "@/app/generated/prisma/client";
 
 export async function GET() {
@@ -34,7 +39,10 @@ export async function POST(request: Request) {
 
   const parsed = createBotSchema.safeParse(await request.json());
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid request", details: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid request", details: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
   const input = parsed.data;
 

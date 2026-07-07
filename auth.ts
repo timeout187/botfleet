@@ -31,7 +31,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where: { userId: user.id, provider: "discord" },
         });
         const discordId = account?.providerAccountId;
-        const shouldPromote = discordId && role === Role.member && adminDiscordIds().includes(discordId);
+        const shouldPromote =
+          discordId && role === Role.member && adminDiscordIds().includes(discordId);
         if (discordId && (!discordUserId || shouldPromote)) {
           const updated = await db.user.update({
             where: { id: user.id },

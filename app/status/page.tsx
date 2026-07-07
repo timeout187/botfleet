@@ -6,8 +6,8 @@ import { BotStatus, WorkerStatus, AlertSeverity } from "@/app/generated/prisma/c
 export const dynamic = "force-dynamic";
 
 export default async function PublicStatusPage() {
-  const [failedBots, offlineWorkers, totalWorkers, openIncidents, recentAlerts] =
-    await Promise.all([
+  const [failedBots, offlineWorkers, totalWorkers, openIncidents, recentAlerts] = await Promise.all(
+    [
       db.bot.count({ where: { status: BotStatus.failed } }),
       db.worker.count({ where: { status: WorkerStatus.failed } }),
       db.worker.count(),
@@ -19,7 +19,8 @@ export default async function PublicStatusPage() {
         orderBy: { createdAt: "desc" },
         take: 10,
       }),
-    ]);
+    ],
+  );
 
   const fleetOperational = failedBots === 0;
   const workersOperational = offlineWorkers === 0 || totalWorkers === 0;

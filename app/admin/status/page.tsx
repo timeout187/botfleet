@@ -1,7 +1,12 @@
 import { db } from "@/lib/db";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { botStatusVariant, workerStatusVariant, shardStatusVariant, formatStatusLabel } from "@/components/status";
+import {
+  botStatusVariant,
+  workerStatusVariant,
+  shardStatusVariant,
+  formatStatusLabel,
+} from "@/components/status";
 
 export default async function PrivateStatusPage() {
   const [bots, workers, shards] = await Promise.all([
@@ -15,8 +20,8 @@ export default async function PrivateStatusPage() {
       <div>
         <h1 className="text-xl font-semibold text-zinc-50">Status (internal)</h1>
         <p className="text-sm text-zinc-500">
-          Per-customer bot health, per-worker health, and per-shard status. The public, customer-safe
-          summary is at <code className="text-zinc-400">/status</code>.
+          Per-customer bot health, per-worker health, and per-shard status. The public,
+          customer-safe summary is at <code className="text-zinc-400">/status</code>.
         </p>
       </div>
 
@@ -48,7 +53,9 @@ export default async function PrivateStatusPage() {
               <Badge variant={workerStatusVariant(w.status)}>{formatStatusLabel(w.status)}</Badge>
             </div>
           ))}
-          {workers.length === 0 && <p className="py-4 text-center text-zinc-500">No workers yet.</p>}
+          {workers.length === 0 && (
+            <p className="py-4 text-center text-zinc-500">No workers yet.</p>
+          )}
         </div>
       </Card>
 

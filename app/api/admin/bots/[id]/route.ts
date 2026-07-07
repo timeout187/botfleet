@@ -4,7 +4,11 @@ import { requireAdmin } from "@/lib/require-admin";
 import { db } from "@/lib/db";
 import { writeAuditLog } from "@/lib/audit";
 import { serializeBot } from "@/lib/serialize";
-import { assertGuildLimitWithinPlan, assertShardCountWithinPlan, PlanLimitError } from "@/lib/plans";
+import {
+  assertGuildLimitWithinPlan,
+  assertShardCountWithinPlan,
+  PlanLimitError,
+} from "@/lib/plans";
 import { BotStatus, PlanTier } from "@/app/generated/prisma/client";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -45,7 +49,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const parsed = patchBotSchema.safeParse(await request.json());
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid request", details: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid request", details: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
   const input = parsed.data;
   const plan = input.plan ?? existing.plan;

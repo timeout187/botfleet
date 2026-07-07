@@ -3,7 +3,19 @@
  * are placeholder strings encrypted the same way a real token would be, so
  * the vault/masking code path is exercised honestly even with fake input.
  */
-import { PrismaClient, Role, PlanTier, BotStatus, WorkerMode, WorkerStatus, ShardStatus, AlertSeverity, AlertStatus, DeploymentStatus, AssignmentStatus } from "../app/generated/prisma/client";
+import {
+  PrismaClient,
+  Role,
+  PlanTier,
+  BotStatus,
+  WorkerMode,
+  WorkerStatus,
+  ShardStatus,
+  AlertSeverity,
+  AlertStatus,
+  DeploymentStatus,
+  AssignmentStatus,
+} from "../app/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { encryptSecret } from "../lib/crypto";
 
@@ -37,17 +49,69 @@ async function main() {
   }
 
   const worker1 = await db.worker.create({
-    data: { name: "worker-1", mode: WorkerMode.pm2, status: WorkerStatus.online, host: "worker-1.internal", maxBots: 5, currentBots: 2, memoryMb: 340, cpuPercent: 12.5, lastHeartbeatAt: new Date() },
+    data: {
+      name: "worker-1",
+      mode: WorkerMode.pm2,
+      status: WorkerStatus.online,
+      host: "worker-1.internal",
+      maxBots: 5,
+      currentBots: 2,
+      memoryMb: 340,
+      cpuPercent: 12.5,
+      lastHeartbeatAt: new Date(),
+    },
   });
   const worker2 = await db.worker.create({
-    data: { name: "worker-2", mode: WorkerMode.docker, status: WorkerStatus.online, host: "worker-2.internal", maxBots: 5, currentBots: 1, memoryMb: 210, cpuPercent: 6.2, lastHeartbeatAt: new Date() },
+    data: {
+      name: "worker-2",
+      mode: WorkerMode.docker,
+      status: WorkerStatus.online,
+      host: "worker-2.internal",
+      maxBots: 5,
+      currentBots: 1,
+      memoryMb: 210,
+      cpuPercent: 6.2,
+      lastHeartbeatAt: new Date(),
+    },
   });
 
   const botDefs = [
-    { customer: customers[0], name: "Nova Guardian", plan: PlanTier.pro, status: BotStatus.online, guildCount: 1840, shardCount: 2, worker: worker1 },
-    { customer: customers[0], name: "Nova Support Bot", plan: PlanTier.pro, status: BotStatus.online, guildCount: 412, shardCount: 1, worker: worker1 },
-    { customer: customers[1], name: "Aegis Sentinel", plan: PlanTier.starter, status: BotStatus.failed, guildCount: 88, shardCount: 1, worker: worker2 },
-    { customer: customers[2], name: "Kess's Helper", plan: PlanTier.free, status: BotStatus.offline, guildCount: 12, shardCount: 1, worker: null },
+    {
+      customer: customers[0],
+      name: "Nova Guardian",
+      plan: PlanTier.pro,
+      status: BotStatus.online,
+      guildCount: 1840,
+      shardCount: 2,
+      worker: worker1,
+    },
+    {
+      customer: customers[0],
+      name: "Nova Support Bot",
+      plan: PlanTier.pro,
+      status: BotStatus.online,
+      guildCount: 412,
+      shardCount: 1,
+      worker: worker1,
+    },
+    {
+      customer: customers[1],
+      name: "Aegis Sentinel",
+      plan: PlanTier.starter,
+      status: BotStatus.failed,
+      guildCount: 88,
+      shardCount: 1,
+      worker: worker2,
+    },
+    {
+      customer: customers[2],
+      name: "Kess's Helper",
+      plan: PlanTier.free,
+      status: BotStatus.offline,
+      guildCount: 12,
+      shardCount: 1,
+      worker: null,
+    },
   ];
 
   for (const def of botDefs) {
@@ -76,7 +140,10 @@ async function main() {
         pingMs: def.status === BotStatus.online ? 40 + Math.floor(Math.random() * 60) : null,
         memoryMb: def.status === BotStatus.online ? 80 + Math.floor(Math.random() * 120) : null,
         restartCount: def.status === BotStatus.failed ? 4 : Math.floor(Math.random() * 2),
-        lastErrorSafe: def.status === BotStatus.failed ? "Discord gateway closed with code 4004 (invalid token)" : null,
+        lastErrorSafe:
+          def.status === BotStatus.failed
+            ? "Discord gateway closed with code 4004 (invalid token)"
+            : null,
       },
     });
 
@@ -91,7 +158,8 @@ async function main() {
         data: {
           botId: bot.id,
           shardId: i,
-          status: def.status === BotStatus.online ? ShardStatus.connected : ShardStatus.disconnected,
+          status:
+            def.status === BotStatus.online ? ShardStatus.connected : ShardStatus.disconnected,
           guildCount: Math.floor(def.guildCount / def.shardCount),
           pingMs: def.status === BotStatus.online ? 40 + Math.floor(Math.random() * 60) : null,
           reconnectCount: def.status === BotStatus.failed ? 3 : 0,
@@ -149,7 +217,9 @@ async function main() {
     },
   });
 
-  console.log(`Seeded ${customers.length} customers, ${botDefs.length} bots, 2 workers, alerts, and a deployment.`);
+  console.log(
+    `Seeded ${customers.length} customers, ${botDefs.length} bots, 2 workers, alerts, and a deployment.`,
+  );
 }
 
 main()

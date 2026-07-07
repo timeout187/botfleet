@@ -37,15 +37,22 @@ export default async function BotsPage() {
             {bots.map((bot) => (
               <tr key={bot.id} className="cursor-pointer hover:bg-zinc-900/50">
                 <td className="py-3">
-                  <Link href={`/admin/bots/${bot.id}`} className="font-medium text-zinc-200 hover:text-indigo-400">
+                  <Link
+                    href={`/admin/bots/${bot.id}`}
+                    className="font-medium text-zinc-200 hover:text-indigo-400"
+                  >
                     {bot.name}
                   </Link>
                 </td>
                 <td className="py-3 text-zinc-400">{bot.customer.name}</td>
                 <td className="py-3">
-                  <Badge variant={botStatusVariant(bot.status)}>{formatStatusLabel(bot.status)}</Badge>
+                  <Badge variant={botStatusVariant(bot.status)}>
+                    {formatStatusLabel(bot.status)}
+                  </Badge>
                 </td>
-                <td className="py-3 text-zinc-400">{bot.health?.guildCount ?? 0} / {bot.guildLimit}</td>
+                <td className="py-3 text-zinc-400">
+                  {bot.health?.guildCount ?? 0} / {bot.guildLimit}
+                </td>
                 <td className="py-3 text-zinc-400">{bot.shardCount}</td>
                 <td className="py-3">
                   <Badge variant="info">{bot.plan}</Badge>

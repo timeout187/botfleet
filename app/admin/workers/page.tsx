@@ -32,7 +32,9 @@ export default async function WorkersPage() {
               </div>
               <div className="flex justify-between">
                 <dt className="text-zinc-500">Bots</dt>
-                <dd className="text-zinc-200">{w._count.bots} / {w.maxBots}</dd>
+                <dd className="text-zinc-200">
+                  {w._count.bots} / {w.maxBots}
+                </dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-zinc-500">Memory</dt>
@@ -48,9 +50,7 @@ export default async function WorkersPage() {
             </div>
           </Card>
         ))}
-        {workers.length === 0 && (
-          <p className="text-sm text-zinc-500">No workers yet.</p>
-        )}
+        {workers.length === 0 && <p className="text-sm text-zinc-500">No workers yet.</p>}
       </div>
     </div>
   );

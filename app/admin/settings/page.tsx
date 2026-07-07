@@ -35,8 +35,8 @@ export default async function SettingsPage() {
         </CardHeader>
         <p className="text-sm text-zinc-500">
           BotFleet is configured entirely through environment variables (see{" "}
-          <code className="text-zinc-300">.env.example</code>) - there&apos;s no in-app settings store
-          yet. Additional admins are promoted by adding their Discord user ID to{" "}
+          <code className="text-zinc-300">.env.example</code>) - there&apos;s no in-app settings
+          store yet. Additional admins are promoted by adding their Discord user ID to{" "}
           <code className="text-zinc-300">BOTFLEET_ADMIN_DISCORD_IDS</code> and having them sign in
           once.
         </p>

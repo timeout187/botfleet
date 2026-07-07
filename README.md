@@ -18,21 +18,21 @@ logs, alerts, and customer limits from one dashboard.
 ---
 
 > **Status: early and under active development.** The data model, token
-> vault, auth, and full admin + customer API layer are built and working
-> against a real Postgres database. The dashboard UI, seed data, and Docker
-> Compose setup are being built next - see the checklist below for exactly
-> what's done vs. in progress. Nothing here fakes metrics, stars, or usage:
-> if a feature isn't built yet, it's listed as not built yet.
+> vault, auth, full admin + customer API layer, dashboard UI, Docker Compose
+> setup, and a mock-data seed script are all built and verified against a
+> real Postgres database. See "Features" below for exactly what's real vs.
+> stubbed vs. not built yet. Nothing here fakes metrics, stars, or usage.
 
 ## Why BotFleet
 
 Most Discord bot developers start with one bot. Once you have 10, 20, or 100
+
 - tokens, restarts, logs, customers, guild limits, shards, health checks,
-crashes, billing plans, and deployments all become chaos. BotFleet is meant
-to become the open-source control plane for that: a bot registry, an
-encrypted token vault, a fleet dashboard, worker/shard management, a
-white-label customer portal, plan enforcement, alerts, and a security
-center - all self-hostable.
+  crashes, billing plans, and deployments all become chaos. BotFleet is meant
+  to become the open-source control plane for that: a bot registry, an
+  encrypted token vault, a fleet dashboard, worker/shard management, a
+  white-label customer portal, plan enforcement, alerts, and a security
+  center - all self-hostable.
 
 ## Features
 
@@ -60,6 +60,14 @@ center - all self-hostable.
 - 🛡️ **Security center checks** - a real, dynamically computed report (key
   configured, admin configured, OAuth configured, CSP enabled, etc.) - not a
   hardcoded score.
+- 🖥️ **Full dashboard UI** - Fleet Overview, Bots (list + detail + actions),
+  Workers, Customers, Logs, Alerts, Security, Deployments, and a public
+  `/status` page, all rendering real data from Postgres.
+- 🐳 **Docker Compose** - app + Postgres + Redis, plus a multi-stage,
+  non-root production `Dockerfile`.
+- 🌱 **Mock-data seed script** - `prisma/seed.ts` generates fake customers,
+  bots, workers, shards, and alerts for local development; never reads or
+  depends on real production data.
 
 **Explicitly stubbed, with clear `TODO(real-runner)` markers in the code:**
 
@@ -67,11 +75,13 @@ center - all self-hostable.
   `RunnerAdapter` interface (PM2 and Docker adapters both exist) but don't
   yet spawn or control a real process. See
   [`lib/runner/pm2-adapter.ts`](./lib/runner/pm2-adapter.ts).
+- Deployments has a real read view over the `deployments` table, but
+  nothing triggers an actual deployment yet.
 
-**Not built yet** (tracked in [issues](https://github.com/timeout187/botfleet/issues)):
+**Not built yet** (tracked in [`docs/roadmap.md`](./docs/roadmap.md)):
 
-- Dashboard UI, seed/mock data, Docker Compose, shard-level UI, deployment
-  manager UI, AI worker queue, plugin system, status page, setup wizard.
+- Setup wizard, plugin system, AI worker queue, worker auto-rebalancing,
+  in-app admin promotion UI.
 
 ## Architecture
 
@@ -138,6 +148,23 @@ add `http://localhost:3000/api/auth/callback/discord` as a redirect, and put
 its client ID/secret in `.env`. Put your own Discord user ID in
 `BOTFLEET_ADMIN_DISCORD_IDS` to be promoted to owner on first sign-in.
 
+Want mock data to look around with instead of an empty dashboard?
+
+```bash
+npx prisma db seed
+```
+
+### Docker Compose
+
+```bash
+cp .env.example .env   # fill in the same values as above
+export $(grep -v '^#' .env | xargs)
+docker compose up --build -d
+```
+
+Runs the app, Postgres, and Redis (reserved for a future AI worker queue,
+not wired up yet) in containers; migrations run automatically on start.
+
 ## Security model
 
 - **Token vault**: AES-256-GCM, 32-byte key from `BOTFLEET_ENCRYPTION_KEY`.
@@ -154,6 +181,22 @@ its client ID/secret in `.env`. Put your own Discord user ID in
   production) is set for every response in [`next.config.ts`](./next.config.ts).
 - **Security Center**: `GET /api/admin/security` computes a real report from
   actual environment/DB state - see [`lib/security-checks.ts`](./lib/security-checks.ts).
+
+Full write-up: [`docs/security.md`](./docs/security.md).
+
+## Docs
+
+- [`docs/architecture.md`](./docs/architecture.md) - layers, data model, auth model
+- [`docs/security.md`](./docs/security.md) - token vault, authZ, CSP, known accepted risk
+- [`docs/api-reference.md`](./docs/api-reference.md) - every admin/customer route
+- [`docs/roadmap.md`](./docs/roadmap.md) - shipped / next / explicitly out of scope
+
+## PM2 mode / Docker mode
+
+Both runner modes exist as a `RunnerAdapter` interface (`lib/runner/`) with
+explicit `TODO(real-runner)` stubs - see
+[`docs/architecture.md`](./docs/architecture.md#why-bot-startstoprestart-dont-control-a-real-process-yet)
+for exactly what's real today and what a real implementation still needs.
 
 ## Contributing
 

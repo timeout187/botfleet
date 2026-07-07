@@ -12,8 +12,9 @@ export default async function LogsPage() {
     <div className="space-y-6">
       <h1 className="text-xl font-semibold text-zinc-50">Logs</h1>
       <p className="text-sm text-zinc-500">
-        BotFleet&apos;s audit log - every admin action taken through the dashboard or API. Bot/worker
-        process-level logs will appear here once a real worker runtime exists to emit them.
+        BotFleet&apos;s audit log - every admin action taken through the dashboard or API.
+        Bot/worker process-level logs will appear here once a real worker runtime exists to emit
+        them.
       </p>
 
       <Card>

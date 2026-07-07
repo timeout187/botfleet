@@ -10,7 +10,12 @@ export function CreateWorkerDialog() {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", mode: "pm2" as "pm2" | "docker", maxBots: 5, host: "" });
+  const [form, setForm] = useState({
+    name: "",
+    mode: "pm2" as "pm2" | "docker",
+    maxBots: 5,
+    host: "",
+  });
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

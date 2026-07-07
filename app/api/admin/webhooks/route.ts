@@ -52,7 +52,10 @@ export async function POST(request: Request) {
 
   const parsed = createWebhookSchema.safeParse(await request.json());
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid request", details: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid request", details: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
 
   const webhook = await db.webhookDestination.create({
