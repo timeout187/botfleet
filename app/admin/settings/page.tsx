@@ -1,13 +1,22 @@
 import { auth } from "@/auth";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { isEncryptionKeyConfigured } from "@/lib/crypto";
+import { isMaintenanceModeEnabled } from "@/lib/system-state";
+import { MaintenanceModeToggle } from "@/components/MaintenanceModeToggle";
 
 export default async function SettingsPage() {
-  const session = await auth();
+  const [session, maintenanceMode] = await Promise.all([auth(), isMaintenanceModeEnabled()]);
 
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-semibold text-zinc-50">Settings</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Fleet maintenance</CardTitle>
+        </CardHeader>
+        <MaintenanceModeToggle initialEnabled={maintenanceMode} />
+      </Card>
 
       <Card>
         <CardHeader>

@@ -55,6 +55,13 @@
   against the live database, including a case where global fleet demand
   (a separate unassigned bot) legitimately competed for the same target
   capacity - the algorithm's choice was correct, not a bug.
+- Safe maintenance mode (`lib/system-state.ts`): a DB-backed `SystemState`
+  singleton toggled from `/admin/settings`. While enabled, customer-triggered
+  bot restarts (`POST /api/customer/bots/[id]/restart`) are blocked with a
+  503, the public `/status` page shows "Scheduled maintenance" instead of
+  its normal operational/degraded state, and every admin page shows a
+  banner. Verified end-to-end against the live database: toggling the flag
+  flips the status page badge in both directions.
 
 ## Next
 
@@ -70,9 +77,11 @@
   plumbing is real today; `analyzeCrash()` is the one function that would
   change, and log summarization/anomaly detection would be new job types
   in the same queue.
-- **Staggered restarts / safe maintenance mode** behind a triggered
-  deployment - the hook plumbing and worker draining are both real today,
-  but a deployment doesn't yet restart bots itself.
+- **Staggered restarts on deployment** - maintenance mode and worker
+  draining are both real today, but a triggered deployment doesn't yet
+  restart bots itself; the natural next step is enqueuing a delayed
+  restart-per-bot job (reusing the PM2/Docker runners) once a deployment's
+  `beforeDeploy` hooks succeed.
 - **Automatic** rebalancing (today's recommendations require a manual click
   to apply, by design - see docs/security.md on why nothing acts without
   an admin's confirmation).

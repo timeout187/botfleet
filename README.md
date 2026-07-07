@@ -119,6 +119,12 @@ Most Discord bot developers start with one bot. Once you have 10, 20, or 100
   bot off a worker onto other online workers with spare capacity (reusing
   the rebalance algorithm), then marks it offline once empty. Bots that
   can't be moved are reported as "stranded", not silently dropped.
+- 🚧 **Safe maintenance mode** - a toggle on `/admin/settings`
+  ([`lib/system-state.ts`](./lib/system-state.ts)) backed by a real DB row.
+  While enabled, customer-triggered restarts return `503`, the public
+  [`/status`](./app/status/page.tsx) page shows "Scheduled maintenance",
+  and every admin page shows a banner - verified end-to-end against the
+  live database in both directions.
 
 **Explicitly stubbed / not fully verified here, said plainly:**
 

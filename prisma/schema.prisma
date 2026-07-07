@@ -317,3 +317,13 @@ model Deployment {
 
   @@map("deployments")
 }
+
+/// Singleton row (always id = "singleton") holding fleet-wide toggles that
+/// need to be readable/writable at runtime without a redeploy.
+model SystemState {
+  id              String   @id
+  maintenanceMode Boolean  @default(false) @map("maintenance_mode")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("system_state")
+}

@@ -111,6 +111,19 @@ computes recommendations, and actually applies every move via
 are left in place and returned as "stranded" rather than silently dropped
 or erroring out - draining a worker never loses track of a bot.
 
+## Maintenance mode
+
+`lib/system-state.ts` reads/writes a single-row `SystemState` table (fixed
+`id: "singleton"`, upserted rather than inserted) holding a
+`maintenanceMode` boolean - the same pattern used for any other fleet-wide
+toggle that needs to change at runtime without a redeploy. Three call
+sites read it: `POST /api/customer/bots/:id/restart` returns a 503 before
+touching the runner if it's on, `/status` (the public status page) shows a
+"Scheduled maintenance" badge instead of its normal operational/degraded
+state, and `app/admin/layout.tsx` renders a banner on every admin page.
+Only `PATCH /api/admin/system-state` (admin-only, audit-logged) can change
+it, from a toggle on `/admin/settings`.
+
 ## Plugin system
 
 `lib/plugins/types.ts` defines `BotFleetPlugin`: an id/name/description

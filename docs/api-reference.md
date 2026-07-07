@@ -40,15 +40,17 @@ resources owned by that user (`404` for anything not owned by you).
 | GET    | `/api/admin/ai/jobs/:jobId`                    | -                                                                                        | Poll a queued AI job's state/result                         |
 | GET    | `/api/admin/deployments`                       | -                                                                                        | List deployment history                                     |
 | POST   | `/api/admin/deployments`                       | `{ version, commitSha, notes? }`                                                         | Runs every plugin's deployment hooks; records the result    |
+| GET    | `/api/admin/system-state`                      | -                                                                                        | Current maintenance mode state                              |
+| PATCH  | `/api/admin/system-state`                      | `{ maintenanceMode }`                                                                    | Toggles maintenance mode; audit-logged                      |
 
 ## Customer API
 
-| Method | Path                             | Notes                                                           |
-| ------ | -------------------------------- | --------------------------------------------------------------- |
-| GET    | `/api/customer/bots`             | Bots owned by the signed-in user's customer record(s)           |
-| GET    | `/api/customer/bots/:id`         | 404 if not owned                                                |
-| POST   | `/api/customer/bots/:id/restart` | 403 if the bot's plan doesn't allow customer-triggered restarts |
-| GET    | `/api/customer/bots/:id/logs`    | Redacted: action + timestamp only, no actor/metadata            |
+| Method | Path                             | Notes                                                                 |
+| ------ | -------------------------------- | --------------------------------------------------------------------- |
+| GET    | `/api/customer/bots`             | Bots owned by the signed-in user's customer record(s)                 |
+| GET    | `/api/customer/bots/:id`         | 404 if not owned                                                      |
+| POST   | `/api/customer/bots/:id/restart` | 503 if maintenance mode is on; 403 if the bot's plan doesn't allow it |
+| GET    | `/api/customer/bots/:id/logs`    | Redacted: action + timestamp only, no actor/metadata                  |
 
 ## Auth
 

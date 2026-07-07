@@ -2,10 +2,18 @@ import { NextResponse } from "next/server";
 import { requireCustomerSession, loadOwnedBot } from "@/lib/require-customer";
 import { getPlanLimits } from "@/lib/plans";
 import { performBotAction } from "@/lib/bot-actions";
+import { isMaintenanceModeEnabled } from "@/lib/system-state";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const guard = await requireCustomerSession();
   if (!guard.ok) return guard.response;
+
+  if (await isMaintenanceModeEnabled()) {
+    return NextResponse.json(
+      { error: "BotFleet is in maintenance mode - bot restarts are temporarily disabled." },
+      { status: 503 },
+    );
+  }
 
   const { id } = await params;
   const bot = await loadOwnedBot(id, guard.session.user.id);

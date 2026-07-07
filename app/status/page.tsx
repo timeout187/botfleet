@@ -2,12 +2,14 @@ import { db } from "@/lib/db";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BotStatus, WorkerStatus, AlertSeverity } from "@/app/generated/prisma/client";
+import { isMaintenanceModeEnabled } from "@/lib/system-state";
 
 export const dynamic = "force-dynamic";
 
 export default async function PublicStatusPage() {
-  const [failedBots, offlineWorkers, totalWorkers, openIncidents, recentAlerts] = await Promise.all(
-    [
+  const [maintenanceMode, failedBots, offlineWorkers, totalWorkers, openIncidents, recentAlerts] =
+    await Promise.all([
+      isMaintenanceModeEnabled(),
       db.bot.count({ where: { status: BotStatus.failed } }),
       db.worker.count({ where: { status: WorkerStatus.failed } }),
       db.worker.count(),
@@ -19,19 +21,26 @@ export default async function PublicStatusPage() {
         orderBy: { createdAt: "desc" },
         take: 10,
       }),
-    ],
-  );
+    ]);
 
   const fleetOperational = failedBots === 0;
   const workersOperational = offlineWorkers === 0 || totalWorkers === 0;
-  const overallOperational = fleetOperational && workersOperational && openIncidents === 0;
+  const overallOperational =
+    !maintenanceMode && fleetOperational && workersOperational && openIncidents === 0;
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-16 text-zinc-100">
       <div className="text-center">
         <h1 className="text-2xl font-semibold">BotFleet Status</h1>
-        <Badge variant={overallOperational ? "success" : "danger"} className="mt-3">
-          {overallOperational ? "All systems operational" : "Degraded performance"}
+        <Badge
+          variant={maintenanceMode ? "warning" : overallOperational ? "success" : "danger"}
+          className="mt-3"
+        >
+          {maintenanceMode
+            ? "Scheduled maintenance"
+            : overallOperational
+              ? "All systems operational"
+              : "Degraded performance"}
         </Badge>
       </div>
 
