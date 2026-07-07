@@ -1,11 +1,12 @@
 /**
  * Standalone background-task worker process for BotFleet. Run separately
  * from the Next.js web process (`npm run worker:ai`) so slow or scheduled
- * work never blocks a dashboard request. Hosts two BullMQ Workers in one
- * process: the AI task queue (crash explanation) and the scheduled-task
- * queue (recurring alert rule evaluation) - both are "background work",
- * so one process is enough; split them into separate processes later if
- * either needs independent scaling.
+ * work never blocks a dashboard request. Hosts three BullMQ Workers in one
+ * process: the AI task queue (crash explanation), the scheduled-task queue
+ * (recurring alert rule evaluation), and the deployment restart queue
+ * (staggered bot restarts) - all "background work", so one process is
+ * enough; split them into separate processes later if any needs
+ * independent scaling.
  */
 import "dotenv/config";
 import { Worker, type Job } from "bullmq";
@@ -17,8 +18,17 @@ import {
   EVALUATE_ALERTS_JOB_NAME,
   ensureAlertEvaluationScheduled,
 } from "@/lib/queue/scheduler-queue";
+import {
+  RESTART_QUEUE_NAME,
+  STAGGERED_RESTART_JOB_NAME,
+  type StaggeredRestartJobData,
+} from "@/lib/queue/restart-queue";
 import { evaluateAlertRules, type EvaluateAlertRulesResult } from "@/lib/alerts/evaluate-rules";
 import { writeAuditLog } from "@/lib/audit";
+import { db } from "@/lib/db";
+import { isMaintenanceModeEnabled } from "@/lib/system-state";
+import { performBotAction } from "@/lib/bot-actions";
+import { BotStatus, WorkerStatus } from "@/app/generated/prisma/client";
 
 async function processExplainCrash(job: Job<ExplainCrashJobData>): Promise<CrashAnalysis> {
   // The job payload is only ever a botId + an already-redacted error
@@ -81,10 +91,73 @@ schedulerWorker.on("failed", (job, err) => {
   console.error(`[scheduler-worker] failed ${job?.id} (${job?.name}):`, err.message);
 });
 
+interface StaggeredRestartResult {
+  skipped: boolean;
+  reason?: string;
+}
+
+async function processStaggeredRestart(
+  job: Job<StaggeredRestartJobData>,
+): Promise<StaggeredRestartResult> {
+  // Re-check live state right before restarting, not just at enqueue time -
+  // a large fleet can take minutes to stagger through, and maintenance mode
+  // or a worker drain may start partway through.
+  if (await isMaintenanceModeEnabled()) {
+    return { skipped: true, reason: "maintenance mode is enabled" };
+  }
+
+  const bot = await db.bot.findUnique({
+    where: { id: job.data.botId },
+    include: { workerGroup: true },
+  });
+  if (!bot) {
+    return { skipped: true, reason: "bot no longer exists" };
+  }
+  if (bot.status !== BotStatus.online) {
+    return { skipped: true, reason: `bot status is "${bot.status}", not online` };
+  }
+  if (bot.workerGroup && bot.workerGroup.status !== WorkerStatus.online) {
+    return { skipped: true, reason: `worker status is "${bot.workerGroup.status}"` };
+  }
+
+  await performBotAction(bot.id, "restart", job.data.actorUserId);
+  await writeAuditLog({
+    actorUserId: job.data.actorUserId,
+    action: "deployment.staggered_restart",
+    targetType: "bot",
+    targetId: bot.id,
+    metadata: { deploymentId: job.data.deploymentId },
+  });
+  return { skipped: false };
+}
+
+const restartWorker = new Worker<StaggeredRestartJobData, StaggeredRestartResult>(
+  RESTART_QUEUE_NAME,
+  async (job) => {
+    switch (job.name) {
+      case STAGGERED_RESTART_JOB_NAME:
+        return processStaggeredRestart(job);
+      default:
+        throw new Error(`Unknown restart job type: ${job.name}`);
+    }
+  },
+  { connection: getQueueConnection(), concurrency: 3 },
+);
+
+restartWorker.on("completed", (job) => {
+  console.log(
+    `[restart-worker] completed ${job.id} (bot ${job.data.botId}): ${JSON.stringify(job.returnvalue)}`,
+  );
+});
+restartWorker.on("failed", (job, err) => {
+  console.error(`[restart-worker] failed ${job?.id} (bot ${job?.data.botId}):`, err.message);
+});
+
 void (async () => {
   await ensureAlertEvaluationScheduled();
   console.log(`[ai-worker] listening on queue "${AI_QUEUE_NAME}"`);
   console.log(
     `[scheduler-worker] listening on queue "${SCHEDULER_QUEUE_NAME}" (alert evaluation every 5 minutes)`,
   );
+  console.log(`[restart-worker] listening on queue "${RESTART_QUEUE_NAME}"`);
 })();

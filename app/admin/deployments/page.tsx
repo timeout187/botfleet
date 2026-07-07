@@ -30,8 +30,8 @@ export default async function DeploymentsPage() {
         <Link href="/admin/plugins" className="text-indigo-400 hover:text-indigo-300">
           /admin/plugins
         </Link>
-        ) and records the result. There&apos;s no process draining or staggered restart behind this
-        yet - see <code className="text-zinc-400">docs/roadmap.md</code>.
+        ), then queues a staggered restart (15s apart) for every currently-online bot - skipped
+        while maintenance mode is on.
       </p>
 
       <Card>

@@ -4,7 +4,9 @@ import { requireAdmin } from "@/lib/require-admin";
 import { db } from "@/lib/db";
 import { ensureBuiltinPluginsRegistered, getPlugins } from "@/lib/plugins";
 import { writeAuditLog } from "@/lib/audit";
-import { DeploymentStatus } from "@/app/generated/prisma/client";
+import { DeploymentStatus, BotStatus } from "@/app/generated/prisma/client";
+import { isMaintenanceModeEnabled } from "@/lib/system-state";
+import { enqueueStaggeredRestarts } from "@/lib/queue/restart-queue";
 
 export async function GET() {
   const guard = await requireAdmin();
@@ -28,9 +30,13 @@ const triggerDeploymentSchema = z.object({
  * Actually runs the deployment lifecycle: creates a Deployment row, then
  * calls every registered plugin's beforeDeploy()/afterDeploy() hook (see
  * lib/plugins/builtin/runner-plugins.ts) - real, observable side effects
- * (each hook writes its own audit log entry), not a no-op. There's still
- * no real process draining/restart behind this - see docs/roadmap.md for
- * what "safe maintenance mode" and staggered restarts would still need.
+ * (each hook writes its own audit log entry). Once hooks succeed, every
+ * currently-online bot gets a staggered restart job (lib/queue/restart-queue.ts)
+ * so the deployment actually reaches running bots, 15s apart, without
+ * blocking this request - unless maintenance mode is on, in which case
+ * restarts are skipped entirely (the deployment itself still records as a
+ * success; restarting bots during a maintenance window is the operator's
+ * call, not automatic).
  */
 export async function POST(request: Request) {
   const guard = await requireAdmin();
@@ -72,15 +78,34 @@ export async function POST(request: Request) {
       data: { status: DeploymentStatus.success, finishedAt: new Date() },
     });
 
+    let restartsQueued = 0;
+    const maintenanceMode = await isMaintenanceModeEnabled();
+    if (!maintenanceMode) {
+      const onlineBots = await db.bot.findMany({
+        where: { status: BotStatus.online },
+        select: { id: true },
+      });
+      restartsQueued = await enqueueStaggeredRestarts(
+        onlineBots.map((b) => b.id),
+        deployment.id,
+        guard.session.user.id,
+      );
+    }
+
     await writeAuditLog({
       actorUserId: guard.session.user.id,
       action: "deployment.trigger",
       targetType: "deployment",
       targetId: deployment.id,
-      metadata: { version: input.version, hooksRun: hookPlugins.map((p) => p.id) },
+      metadata: {
+        version: input.version,
+        hooksRun: hookPlugins.map((p) => p.id),
+        restartsQueued,
+        restartsSkippedForMaintenance: maintenanceMode,
+      },
     });
 
-    return NextResponse.json({ deployment: finished }, { status: 201 });
+    return NextResponse.json({ deployment: finished, restartsQueued }, { status: 201 });
   } catch (err) {
     const failed = await db.deployment.update({
       where: { id: deployment.id },

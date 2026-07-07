@@ -161,6 +161,18 @@ This job and the manual "Evaluate alert rules now" button on
 `/admin/plugins` both call the same `lib/alerts/evaluate-rules.ts`
 function, so there's one evaluation code path, not two that could drift.
 
+The same process also runs a third `Worker`, on `botfleet-deployment-restarts`
+(`lib/queue/restart-queue.ts`), for staggered bot restarts after a
+deployment. `POST /api/admin/deployments` enqueues one job per
+currently-online bot, each delayed `index * 15s` from the last, then
+returns immediately - it never waits for bots to actually restart. Each
+job re-reads `isMaintenanceModeEnabled()` and the bot/worker's live status
+right before calling `performBotAction(botId, "restart", ...)`, so a
+maintenance window or worker drain that starts partway through a large
+fleet's restart sequence is honored rather than raced against. If
+maintenance mode is already on when the deployment is triggered, no
+restart jobs are enqueued at all.
+
 ## Auth model
 
 - Admin/owner: promoted via `BOTFLEET_ADMIN_DISCORD_IDS` on first Discord

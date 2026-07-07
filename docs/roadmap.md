@@ -62,6 +62,16 @@
   its normal operational/degraded state, and every admin page shows a
   banner. Verified end-to-end against the live database: toggling the flag
   flips the status page badge in both directions.
+- Staggered restarts on deployment (`lib/queue/restart-queue.ts`): once a
+  triggered deployment's plugin hooks succeed, every currently-online bot
+  gets a real BullMQ job that restarts it (via the same PM2/Docker runner
+  used everywhere else), 15 seconds apart, in a separate worker process -
+  never blocking the deployment request. Each job re-checks live state
+  right before running: skipped if maintenance mode is on by then, or if
+  the bot/its worker isn't online anymore. Verified end-to-end against the
+  live database and a running `worker:ai` process: enqueued jobs actually
+  restarted real PM2 processes, and re-enqueuing under maintenance mode
+  produced the expected "skipped" result for every job instead.
 
 ## Next
 
@@ -77,11 +87,6 @@
   plumbing is real today; `analyzeCrash()` is the one function that would
   change, and log summarization/anomaly detection would be new job types
   in the same queue.
-- **Staggered restarts on deployment** - maintenance mode and worker
-  draining are both real today, but a triggered deployment doesn't yet
-  restart bots itself; the natural next step is enqueuing a delayed
-  restart-per-bot job (reusing the PM2/Docker runners) once a deployment's
-  `beforeDeploy` hooks succeed.
 - **Automatic** rebalancing (today's recommendations require a manual click
   to apply, by design - see docs/security.md on why nothing acts without
   an admin's confirmation).

@@ -125,6 +125,15 @@ Most Discord bot developers start with one bot. Once you have 10, 20, or 100
   [`/status`](./app/status/page.tsx) page shows "Scheduled maintenance",
   and every admin page shows a banner - verified end-to-end against the
   live database in both directions.
+- 🔁 **Staggered restarts on deployment** - "Trigger deployment" now
+  queues a real BullMQ job per currently-online bot
+  ([`lib/queue/restart-queue.ts`](./lib/queue/restart-queue.ts)), 15s
+  apart, each one restarting via the same PM2/Docker runner used
+  everywhere else - never blocking the deployment request. Each job
+  re-checks maintenance mode and worker status right before running, and
+  skips itself if either has changed. Verified end-to-end with a running
+  `worker:ai` process: real PM2 restarts fired on schedule, and jobs
+  correctly self-skipped when maintenance mode was toggled on mid-test.
 
 **Explicitly stubbed / not fully verified here, said plainly:**
 
@@ -140,8 +149,6 @@ Most Discord bot developers start with one bot. Once you have 10, 20, or 100
   [`lib/plugins/builtin/bot-templates.ts`](./lib/plugins/builtin/bot-templates.ts)
   for what a real one looks like; wiring one in is the natural next step
   (it just needs a real Discord bot token to test against).
-- A triggered deployment runs plugin hooks but doesn't drain workers or
-  stagger restarts yet - see docs/roadmap.md.
 - Rebalancing only recommends - nothing moves automatically.
 - The AI worker's crash analysis is rule-based, not a real LLM call (see
   above) - it only runs when someone clicks "Explain this crash".
