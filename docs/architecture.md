@@ -199,6 +199,20 @@ validated through `@botfleet/protocol` and deduplicated by `messageId` via
 `InMemoryReplayGuard` - malformed or replayed messages are dropped and
 logged, never processed.
 
+## Runtime SDK and local IPC
+
+`packages/runtime-sdk` (`@botfleet/runtime-sdk`) is what an independently
+developed bot process links against - see `docs/runtime-sdk.md` for the
+full developer experience and security model. It only ever knows a
+`botId` and a local Unix socket path; `apps/agent/src/local-ipc.ts` is
+the server on the other end, which allowlists message types, re-validates
+every payload through `@botfleet/protocol`, and forwards accepted
+messages up the agent's own already-authenticated connection to the
+agent gateway above. `packages/adapter-discordjs` and
+`packages/adapter-eris` wire a real `discord.js`/`Eris` client's
+lifecycle events into the runtime automatically, so bot code doesn't have
+to call `runtime.ready()`/`heartbeat()` by hand for the common cases.
+
 ## Auth model
 
 - Admin/owner: promoted via `BOTFLEET_ADMIN_DISCORD_IDS` on first Discord

@@ -1,0 +1,19 @@
+{
+  "name": "@botfleet/example-discordjs-basic",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "tsx index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@botfleet/adapter-discordjs": "*",
+    "@botfleet/runtime-sdk": "*",
+    "discord.js": "^14.26.4",
+    "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.0",
+    "typescript": "^5"
+  }
+}

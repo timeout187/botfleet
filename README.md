@@ -34,6 +34,11 @@ logs, alerts, and customer limits from one dashboard.
 > reconnects with a persisted credential after that - verified end-to-end
 > against a live database and real running processes, see
 > `docs/agent-enrollment.md` and `docs/agent-installation.md`.
+> `packages/runtime-sdk` + `packages/adapter-discordjs`/`adapter-eris` let
+> an independent bot process (only knowing a `botId` and a local socket
+> path - never a control-plane credential) report status through its
+> agent, verified end-to-end with a real running agent/gateway and a real
+> `discord.js`/`Eris` client - see `docs/runtime-sdk.md`.
 
 ## Why BotFleet
 

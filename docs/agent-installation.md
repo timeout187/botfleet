@@ -49,14 +49,15 @@ restart policy) should run.
 
 ## Environment variables
 
-| Variable                          | Required       | Notes                                                                                                                                |
-| --------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `BOTFLEET_CONTROL_PLANE_WS_URL`   | yes            | e.g. `ws://localhost:4010` (or `wss://...` behind a TLS-terminating proxy - the raw `ws` server here does not terminate TLS itself). |
-| `BOTFLEET_AGENT_ENROLLMENT_TOKEN` | first run only | Single-use, from `/admin/agents`.                                                                                                    |
-| `BOTFLEET_AGENT_STATE_PATH`       | no             | Default `./botfleet-agent-state.json`.                                                                                               |
-| `BOTFLEET_AGENT_NAME`             | no             | Defaults to the machine's hostname.                                                                                                  |
-| `BOTFLEET_AGENT_LABELS`           | no             | Comma-separated `key=value` pairs, e.g. `region=eu-central,tier=premium`.                                                            |
-| `BOTFLEET_AGENT_CAPABILITIES`     | no             | Comma-separated, from `pm2`, `docker`, `discordjs`, `eris`, `ai-worker`, `custom-executable`. Defaults to `custom-executable`.       |
+| Variable                          | Required       | Notes                                                                                                                                  |
+| --------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `BOTFLEET_CONTROL_PLANE_WS_URL`   | yes            | e.g. `ws://localhost:4010` (or `wss://...` behind a TLS-terminating proxy - the raw `ws` server here does not terminate TLS itself).   |
+| `BOTFLEET_AGENT_ENROLLMENT_TOKEN` | first run only | Single-use, from `/admin/agents`.                                                                                                      |
+| `BOTFLEET_AGENT_STATE_PATH`       | no             | Default `./botfleet-agent-state.json`.                                                                                                 |
+| `BOTFLEET_AGENT_NAME`             | no             | Defaults to the machine's hostname.                                                                                                    |
+| `BOTFLEET_AGENT_LABELS`           | no             | Comma-separated `key=value` pairs, e.g. `region=eu-central,tier=premium`.                                                              |
+| `BOTFLEET_AGENT_CAPABILITIES`     | no             | Comma-separated, from `pm2`, `docker`, `discordjs`, `eris`, `ai-worker`, `custom-executable`. Defaults to `custom-executable`.         |
+| `BOTFLEET_AGENT_SOCKET_PATH`      | no             | Local Unix socket bot processes report to via `@botfleet/runtime-sdk` - see `docs/runtime-sdk.md`. Default `/tmp/botfleet-agent.sock`. |
 
 ## Behavior
 
@@ -73,3 +74,9 @@ restart policy) should run.
 - Does **not** yet supervise real bot processes - see
   `docs/distributed-audit.md`/`docs/roadmap.md` for what's still ahead
   (workload scheduling, PM2/Docker command execution on the agent side).
+- **Local IPC**: starts a Unix socket server (`BOTFLEET_AGENT_SOCKET_PATH`)
+  that bot processes connect to via `@botfleet/runtime-sdk` to report
+  their own status - see `docs/runtime-sdk.md`. Messages are validated
+  and forwarded up this agent's own authenticated connection; a bot
+  process never sees the control plane's address or this agent's
+  credential.

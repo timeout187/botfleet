@@ -1,0 +1,23 @@
+{
+  "name": "@botfleet/adapter-discordjs",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@botfleet/runtime-sdk": "*"
+  },
+  "peerDependencies": {
+    "discord.js": "^14.0.0"
+  },
+  "devDependencies": {
+    "discord.js": "^14.26.4",
+    "typescript": "^5",
+    "vitest": "^3.2.4"
+  }
+}

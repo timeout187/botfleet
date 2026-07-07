@@ -53,12 +53,31 @@ This is a large, multi-phase effort; status:
   behind; and a token restricted to `environment: "production"` correctly
   rejects an agent declaring a different environment (and is still burned,
   so it can't be retried).
+- **Phase 5 - runtime SDK + discord.js/Eris adapters** (`packages/runtime-sdk`,
+  `packages/adapter-discordjs`, `packages/adapter-eris`,
+  `examples/discordjs-basic`, `examples/eris-basic`): the SDK a bot process
+  links against only ever knows a `botId` and a local Unix socket path -
+  no control-plane URL, credential, or database access, by construction.
+  `apps/agent/src/local-ipc.ts` is the server on the other end: an
+  allowlist of message types plus full `@botfleet/protocol` payload
+  validation before forwarding anything up the agent's own authenticated
+  connection. `attachDiscordJs()`/`attachEris()` wire a real client's
+  events into the runtime automatically. See `docs/runtime-sdk.md` for
+  the full security model (size limits, rate limits, reconnect-with-
+  bounded-queue resilience). Verified end-to-end with real running
+  processes (not mocked): the `discordjs-basic` example's `log()`/
+  `gracefulShutdown()` calls traveled over a real Unix socket to a real
+  agent, were forwarded over that agent's real authenticated WebSocket
+  connection, and arrived at the control plane's gateway correctly typed
+  and attributed to the right `agentId`. The adapters are each tested
+  against a real `discord.js`/`Eris` client instance with events emitted
+  directly (no token available in this sandbox to reach a live gateway).
 
 **Not started yet** (remaining distributed-mission phases, roughly in the
-mission's own priority order): the runtime SDK + discord.js/Eris adapters,
-the versioned workload specification, the rest of the distributed data
-model (Workload/AgentCommand/WorkloadEvent/etc - only Agent/AgentCredential/
-EnrollmentToken exist so far), the scheduler, the reconciliation loop,
+mission's own priority order): the versioned workload specification,
+the rest of the distributed data model (Workload/AgentCommand/
+WorkloadEvent/etc - only Agent/AgentCredential/EnrollmentToken exist so
+far), the scheduler, the reconciliation loop,
 distributed drain/evacuation with fencing, deployment artifacts + rollout
 strategies, the fleet simulator, further dashboard UI (Workloads/Scheduler
 pages, real-time updates), the CLI, observability

@@ -26,6 +26,7 @@ export interface AgentConfig {
   labels: AgentLabels;
   capabilities: AgentCapability[];
   stateFilePath: string;
+  localSocketPath: string;
   agentVersion: string;
 }
 
@@ -44,6 +45,7 @@ export function loadConfig(): AgentConfig {
     labels: parseLabels(process.env.BOTFLEET_AGENT_LABELS),
     capabilities: parseCapabilities(process.env.BOTFLEET_AGENT_CAPABILITIES),
     stateFilePath: process.env.BOTFLEET_AGENT_STATE_PATH ?? "./botfleet-agent-state.json",
+    localSocketPath: process.env.BOTFLEET_AGENT_SOCKET_PATH ?? "/tmp/botfleet-agent.sock",
     agentVersion: "0.1.0",
   };
 }

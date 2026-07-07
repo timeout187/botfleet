@@ -1,0 +1,19 @@
+{
+  "name": "@botfleet/example-eris-basic",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "tsx index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@botfleet/adapter-eris": "*",
+    "@botfleet/runtime-sdk": "*",
+    "dotenv": "^17.4.2",
+    "eris": "^0.18.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.0",
+    "typescript": "^5"
+  }
+}

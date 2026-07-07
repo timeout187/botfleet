@@ -9,14 +9,19 @@
  */
 import "dotenv/config";
 import os from "node:os";
+import { randomUUID } from "node:crypto";
+import type net from "node:net";
 import { WebSocket } from "ws";
 import {
   createAgentToControlPlaneMessage,
   parseControlPlaneToAgentMessage,
+  PROTOCOL_VERSION,
+  type AgentToControlPlaneType,
 } from "@botfleet/protocol";
 import { loadConfig } from "./config";
 import { loadState, saveState } from "./state";
 import { sampleResources } from "./resources";
+import { startLocalIpcServer } from "./local-ipc";
 
 const config = loadConfig();
 
@@ -25,6 +30,7 @@ let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let reconnectAttempt = 0;
 let shuttingDown = false;
 let agentId: string | null = null;
+let localIpcServer: net.Server | null = null;
 
 function log(message: string): void {
   console.log(`[agent] ${message}`);
@@ -147,15 +153,43 @@ function stopHeartbeatLoop(): void {
   }
 }
 
+/**
+ * Relays an already-validated bot/shard status message (see
+ * ./local-ipc.ts, which validates the payload shape before ever calling
+ * this) up to the control plane over this agent's own authenticated
+ * connection. Bot processes never see this connection, its credential,
+ * or the control plane's address - they only ever know the local socket
+ * path (@botfleet/runtime-sdk).
+ */
+function forwardBotMessage(type: AgentToControlPlaneType, payload: unknown): void {
+  if (!agentId || ws?.readyState !== WebSocket.OPEN) {
+    log(`dropping "${type}" from a local bot process - not connected to the control plane`);
+    return;
+  }
+  const message = {
+    protocolVersion: PROTOCOL_VERSION,
+    messageId: randomUUID(),
+    timestamp: new Date().toISOString(),
+    senderId: agentId,
+    type,
+    payload,
+  };
+  ws.send(JSON.stringify(message));
+}
+
 function shutdown(): void {
   shuttingDown = true;
   stopHeartbeatLoop();
   ws?.close();
+  localIpcServer?.close();
   log("shut down cleanly");
   process.exit(0);
 }
 
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
+
+localIpcServer = startLocalIpcServer(config.localSocketPath, forwardBotMessage);
+log(`local IPC listening on ${config.localSocketPath}`);
 
 connect();
