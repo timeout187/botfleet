@@ -15,6 +15,8 @@
     "test:integration": "npm run test:integration --workspaces --if-present",
     "test:e2e": "npm run test:e2e --workspaces --if-present",
     "verify": "npm run lint && npm run typecheck && npm run test && npm run build",
-    "worker:ai": "npm run worker:ai --workspace @botfleet/control-plane"
+    "worker:ai": "npm run worker:ai --workspace @botfleet/control-plane",
+    "agent-gateway": "npm run agent-gateway --workspace @botfleet/control-plane",
+    "agent:dev": "npm run dev --workspace @botfleet/agent"
   }
 }

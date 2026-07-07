@@ -46,6 +46,26 @@ Bot tokens (and Discord webhook URLs) are encrypted with AES-256-GCM
   never be demoted (guarded server-side in
   `PATCH /api/admin/users/:id`, not just hidden in the UI).
 
+## Agent enrollment and credentials
+
+See `docs/agent-enrollment.md` for the full flow. Summary of the security
+properties:
+
+- Enrollment tokens are single-use (atomically claimed, not read-then-write),
+  expiring (30 min default), hashed at rest (SHA-256), and can be scoped to
+  an environment/label set.
+- **Agent credentials are a disclosed, non-production placeholder: a bearer
+  secret, not mutual TLS.** `lib/agents/credential.ts`'s doc comment
+  explains exactly why and what a real mTLS upgrade would replace. Do not
+  treat this as equivalent to a certificate-based identity for a
+  production multi-tenant deployment.
+- An unauthenticated agent connection can only ever send one message type
+  (`agent.enroll`) - every other message on an unauthenticated socket is
+  dropped and logged by `lib/agent-gateway/server.ts`, never processed.
+- Every protocol message is replay-guarded by `messageId`
+  (`@botfleet/protocol`'s `InMemoryReplayGuard`) and schema-validated
+  before any handler runs.
+
 ## Content-Security-Policy
 
 Set in `next.config.ts` for every response. `script-src` only allows

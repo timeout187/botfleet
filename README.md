@@ -28,9 +28,12 @@ logs, alerts, and customer limits from one dashboard.
 > see `docs/distributed-audit.md` for the honest baseline this started
 > from and `docs/roadmap.md` for what's shipped vs. not started yet. The
 > repo is now an npm workspace: `apps/control-plane` is everything
-> described below; `packages/protocol` is the first piece of the
-> distributed layer (a versioned message catalog, see
-> `docs/protocol-reference.md`).
+> described below; `packages/protocol` is a versioned message catalog
+> (see `docs/protocol-reference.md`); `apps/agent` is a real standalone
+> agent process that enrolls with a single-use admin-issued token and
+> reconnects with a persisted credential after that - verified end-to-end
+> against a live database and real running processes, see
+> `docs/agent-enrollment.md` and `docs/agent-installation.md`.
 
 ## Why BotFleet
 

@@ -5,6 +5,11 @@ const agentAcceptedPayload = z.object({
   agentId: z.string().min(1),
   agentCredentialFingerprint: z.string().min(1),
   heartbeatIntervalMs: z.number().int().positive(),
+  /** Only ever populated the one time this message follows a successful
+   * `agent.enroll` - the single moment the plaintext bearer credential is
+   * transmitted. See lib/agents/credential.ts for why this is a bearer
+   * secret rather than an mTLS certificate today. */
+  credentialSecret: z.string().min(1).optional(),
 });
 
 const agentRotateCertificatePayload = z.object({

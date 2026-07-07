@@ -181,6 +181,24 @@ fleet's restart sequence is honored rather than raced against. If
 maintenance mode is already on when the deployment is triggered, no
 restart jobs are enqueued at all.
 
+## Agent gateway (distributed control plane)
+
+`lib/agent-gateway/server.ts` is a standalone `http` + `ws` server
+(`npm run agent-gateway`, separate from the Next.js process, the same way
+`worker:ai` is) that remote `apps/agent` processes connect outbound to -
+this is the first real piece of the distributed control plane described
+in `docs/distributed-audit.md`. Full detail (enrollment flow, credential
+model, what's verified) lives in `docs/agent-enrollment.md` and
+`docs/agent-installation.md`; in short: an agent with no credential yet
+can only send `agent.enroll` (carrying a single-use enrollment token) over
+an otherwise-unauthenticated socket; an agent with a previously-issued
+credential authenticates via an `Authorization` header _before_ the
+WebSocket upgrade completes, then sends `agent.heartbeat` messages that
+update a real `Agent` row's status and resource metrics. Every message is
+validated through `@botfleet/protocol` and deduplicated by `messageId` via
+`InMemoryReplayGuard` - malformed or replayed messages are dropped and
+logged, never processed.
+
 ## Auth model
 
 - Admin/owner: promoted via `BOTFLEET_ADMIN_DISCORD_IDS` on first Discord

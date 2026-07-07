@@ -42,6 +42,8 @@ resources owned by that user (`404` for anything not owned by you).
 | POST   | `/api/admin/deployments`                       | `{ version, commitSha, notes? }`                                                         | Runs plugin hooks, then queues staggered restarts (response includes `restartsQueued`) |
 | GET    | `/api/admin/system-state`                      | -                                                                                        | Current maintenance mode state                                                         |
 | PATCH  | `/api/admin/system-state`                      | `{ maintenanceMode }`                                                                    | Toggles maintenance mode; audit-logged                                                 |
+| GET    | `/api/admin/agents`                            | -                                                                                        | List enrolled agents (see docs/agent-enrollment.md)                                    |
+| POST   | `/api/admin/agents/enrollment-tokens`          | `{ environment?, requiredLabels?, ttlMinutes? }`                                         | Returns the plaintext token once; only its hash is ever stored                         |
 
 ## Customer API
 

@@ -34,20 +34,39 @@ This is a large, multi-phase effort; status:
   full catalog completeness against the mission's specified message list).
   This package is also where `npm run test`/`test:integration`/`test:e2e`
   and `npm run verify` first became real commands rather than no-ops.
+- **Phase 3-4 - remote agent + secure enrollment** (`apps/agent`,
+  `lib/agent-gateway/*`, `lib/agents/*`): a real standalone agent process
+  that connects outbound over WebSocket, enrolls with a single-use
+  admin-issued token (`/admin/agents`, `POST
+/api/admin/agents/enrollment-tokens`), and reconnects on every
+  subsequent run using a persisted bearer credential - no token needed
+  after the first enrollment. See `docs/agent-enrollment.md` and
+  `docs/agent-installation.md` for the full flow and the disclosed
+  non-mTLS credential model. Verified end-to-end against a live database
+  and real running processes (not mocked): fresh enrollment creates a real
+  `Agent` row with real host metrics (actual CPU/memory/disk sampling);
+  heartbeats advance `lastHeartbeatAt` every ~15s; a clean `SIGTERM`
+  flips status to `disconnected` immediately; a reconnect using only the
+  persisted credential reuses the same `agentId` (confirmed exactly one
+  `Agent` row, not a duplicate); replaying an already-consumed enrollment
+  token is rejected on every retry with no orphaned `Agent` row left
+  behind; and a token restricted to `environment: "production"` correctly
+  rejects an agent declaring a different environment (and is still burned,
+  so it can't be retried).
 
 **Not started yet** (remaining distributed-mission phases, roughly in the
-mission's own priority order): the remote agent process + secure
-enrollment, the runtime SDK + discord.js/Eris adapters, the versioned
-workload specification, the distributed Agent/Workload/AgentCommand data
-model, the scheduler, the reconciliation loop, distributed drain/evacuation
-with fencing, deployment artifacts + rollout strategies, the fleet
-simulator, dashboard UI additions (Agents/Workloads/Scheduler pages,
-real-time updates), the CLI, observability (OpenTelemetry/Prometheus),
-expanded RBAC/approvals, the broader security test suite, and the
-acceptance-test demo script. Each will be added to "Shipped" above with
-its own verification notes as it actually lands - none of it is claimed
-done until it's real and tested, per this project's own conventions (see
-CONTRIBUTING.md).
+mission's own priority order): the runtime SDK + discord.js/Eris adapters,
+the versioned workload specification, the rest of the distributed data
+model (Workload/AgentCommand/WorkloadEvent/etc - only Agent/AgentCredential/
+EnrollmentToken exist so far), the scheduler, the reconciliation loop,
+distributed drain/evacuation with fencing, deployment artifacts + rollout
+strategies, the fleet simulator, further dashboard UI (Workloads/Scheduler
+pages, real-time updates), the CLI, observability
+(OpenTelemetry/Prometheus), expanded RBAC/approvals, the broader security
+test suite, and the acceptance-test demo script. Each will be added to
+"Shipped" above with its own verification notes as it actually lands -
+none of it is claimed done until it's real and tested, per this project's
+own conventions (see CONTRIBUTING.md).
 
 ## Shipped (single-node dashboard, pre-distributed-mission)
 

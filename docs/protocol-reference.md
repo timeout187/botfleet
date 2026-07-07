@@ -75,7 +75,7 @@ reconnect) must be a no-op on the agent, not a duplicate action.
 
 | Type                       | Payload summary                                                                                                                                                                |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `agent.accepted`           | `agentId`, `agentCredentialFingerprint`, `heartbeatIntervalMs`                                                                                                                 |
+| `agent.accepted`           | `agentId`, `agentCredentialFingerprint`, `heartbeatIntervalMs`, optional `credentialSecret` (only present the one time this follows a successful enrollment)                   |
 | `agent.rotate_certificate` | `agentId`, `newCertificateRef`                                                                                                                                                 |
 | `bot.start`                | `workloadId`, `botId`, `idempotencyKey`                                                                                                                                        |
 | `bot.stop`                 | `workloadId`, `botId`, `idempotencyKey`                                                                                                                                        |
