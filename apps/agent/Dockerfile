@@ -22,6 +22,10 @@ RUN npm ci
 FROM node:20-slim AS builder
 WORKDIR /repo
 COPY --from=deps /repo/node_modules ./node_modules
+# The root package.json defines the npm workspaces, so `npm run build
+# --workspace <name>` needs it present - without it npm exits with
+# ENOENT on /repo/package.json before running any build.
+COPY package.json package-lock.json ./
 COPY packages/protocol packages/protocol
 COPY packages/runtime-sdk packages/runtime-sdk
 COPY packages/workload-spec packages/workload-spec

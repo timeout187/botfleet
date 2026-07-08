@@ -71,6 +71,11 @@ images, creating a GitHub release, `npm publish`).
   depends on (`@botfleet/protocol`, `@botfleet/scheduler`,
   `@botfleet/workload-spec`) and builds only those plus the control-plane
   itself.
+- **Agent Docker image failing to build**: its multi-stage `builder`
+  copied the workspace source and `node_modules` but not the root
+  `package.json`, so `npm run build --workspace <name>` exited with
+  `ENOENT` on `/repo/package.json` - workspace-scoped npm commands need
+  the workspace-root manifest present. The builder now copies it.
 - **Stale command result corrupting current workload state**: when
   `drainAgent()` sends its explicit "stop the old copy" command to a
   just-relocated-away agent, that agent's legitimate success response
