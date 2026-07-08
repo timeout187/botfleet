@@ -4,8 +4,16 @@
 FROM node:20-slim AS deps
 WORKDIR /repo
 RUN apt-get update -y && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+# Every workspace package.json the control-plane build touches must be
+# present before `npm ci`, or npm installs none of that workspace's
+# dependencies and creates no node_modules/@botfleet/* symlink for it.
+# The control-plane only depends on these three workspaces (not the
+# runtime-sdk or the discord.js/eris adapters), so only these are copied.
 COPY package.json package-lock.json ./
 COPY apps/control-plane/package.json apps/control-plane/package.json
+COPY packages/protocol/package.json packages/protocol/package.json
+COPY packages/scheduler/package.json packages/scheduler/package.json
+COPY packages/workload-spec/package.json packages/workload-spec/package.json
 RUN npm ci
 
 FROM node:20-slim AS builder
@@ -17,11 +25,15 @@ COPY . .
 # provider, not to connect - migrations run separately at container start.
 ENV DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
 RUN npx prisma generate --schema apps/control-plane/prisma/schema.prisma
-# `npm run build` (not just the control-plane workspace's own build) -
-# control-plane imports @botfleet/protocol and @botfleet/scheduler by
-# their built dist/ output, which isn't committed and doesn't exist yet
-# at this point in the image.
-RUN npm run build
+# Build only the three workspace packages the control-plane imports (by
+# their built dist/ output, which is gitignored and doesn't exist yet in
+# the image), then the control-plane itself. A bare `npm run build` would
+# also build the discord.js/eris adapters, whose dependencies were never
+# installed above - the control-plane image has no use for them.
+RUN npm run build --workspace @botfleet/protocol \
+  && npm run build --workspace @botfleet/workload-spec \
+  && npm run build --workspace @botfleet/scheduler \
+  && npm run build --workspace @botfleet/control-plane
 
 FROM node:20-slim AS runner
 WORKDIR /repo/apps/control-plane

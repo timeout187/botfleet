@@ -62,6 +62,15 @@ images, creating a GitHub release, `npm publish`).
   repo's actual first GitHub Actions run. Added a `build:packages` root
   script and `prisma generate` steps to every job (and both Dockerfiles,
   which had the identical bug) that needs them.
+- **Control-plane Docker image failing to build**: the first real run of
+  the `docker-build` CI job (once the fix above unblocked it) failed
+  because the image ran a bare `npm run build`, which also compiles the
+  discord.js/eris adapters - packages the control-plane never imports and
+  whose dependencies the image's `npm ci` had never installed. The
+  control-plane image now installs only the three workspaces it actually
+  depends on (`@botfleet/protocol`, `@botfleet/scheduler`,
+  `@botfleet/workload-spec`) and builds only those plus the control-plane
+  itself.
 - **Stale command result corrupting current workload state**: when
   `drainAgent()` sends its explicit "stop the old copy" command to a
   just-relocated-away agent, that agent's legitimate success response
