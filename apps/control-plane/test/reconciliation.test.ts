@@ -181,9 +181,7 @@ describe("reconcileWorkloads", () => {
 
     const result = await reconcileWorkloads(null);
 
-    expect(result.skipped.find((s) => s.workloadId === workload.id)?.reason).toMatch(
-      /suspended/,
-    );
+    expect(result.skipped.find((s) => s.workloadId === workload.id)?.reason).toMatch(/suspended/);
     const commandCount = await db.agentCommand.count({ where: { workloadId: workload.id } });
     expect(commandCount).toBe(0);
   });
@@ -202,9 +200,7 @@ describe("reconcileWorkloads", () => {
 
     const result = await reconcileWorkloads(null);
 
-    expect(result.skipped.find((s) => s.workloadId === workload.id)?.reason).toMatch(
-      /backing off/,
-    );
+    expect(result.skipped.find((s) => s.workloadId === workload.id)?.reason).toMatch(/backing off/);
     const commandCount = await db.agentCommand.count({ where: { workloadId: workload.id } });
     expect(commandCount).toBe(0);
   });

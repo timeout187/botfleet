@@ -125,7 +125,7 @@ This is a large, multi-phase effort; status:
 - **Phase 10 - agent draining, workload evacuation, ownership fencing**
   (v0.1.0 stabilization pass, `lib/agents/drain.ts`,
   `lib/agent-gateway/server.ts`'s `handleInventory()`): `POST
-  /api/admin/agents/:id/drain` marks an agent `draining` and relocates
+/api/admin/agents/:id/drain` marks an agent `draining` and relocates
   every workload it holds onto another eligible online agent using the
   real `@botfleet/scheduler` scoring function, stranding (not silently
   dropping) anything with no eligible target. The actual
@@ -150,7 +150,7 @@ This is a large, multi-phase effort; status:
   in-process mutex). Repeated command failures now back off exponentially
   and, after 5 consecutive failures, suspend reconciliation for that
   workload entirely until an admin clears it (`POST
-  /api/admin/workloads/:id/clear-failure`) - no more retrying a
+/api/admin/workloads/:id/clear-failure`) - no more retrying a
   permanently broken workload every 30 seconds forever. See
   `docs/reconciliation.md`.
 

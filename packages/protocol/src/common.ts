@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const agentCapabilitySchema = z.enum([
+  "node",
   "pm2",
   "docker",
   "discordjs",

@@ -38,7 +38,9 @@ const RECONCILE_LOCK_KEY: [number, number] = [847362, 1];
  * scoped lock (not a session-scoped `pg_advisory_lock`/`unlock` pair) is
  * the only safe choice under Prisma's pooled connections.
  */
-export async function reconcileWorkloads(actorUserId: string | null): Promise<ReconciliationResult> {
+export async function reconcileWorkloads(
+  actorUserId: string | null,
+): Promise<ReconciliationResult> {
   return db.$transaction(async (tx) => {
     const [{ locked }] = await tx.$queryRaw<{ locked: boolean }[]>`
       SELECT pg_try_advisory_xact_lock(${RECONCILE_LOCK_KEY[0]}, ${RECONCILE_LOCK_KEY[1]}) AS locked
@@ -64,7 +66,10 @@ export async function reconcileWorkloads(actorUserId: string | null): Promise<Re
         continue;
       }
       if (workload.nextReconcileAttemptAt && workload.nextReconcileAttemptAt > now) {
-        result.skipped.push({ workloadId: workload.id, reason: "backing off after a recent failure" });
+        result.skipped.push({
+          workloadId: workload.id,
+          reason: "backing off after a recent failure",
+        });
         continue;
       }
 

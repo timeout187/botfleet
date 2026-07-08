@@ -67,7 +67,7 @@ documented gap, not a silent one (see `docs/roadmap.md`).
 
 `requiredLabels`/`preferredLabels` are validated and stored, and are now
 consumed by `@botfleet/scheduler`'s eligibility filters and scoring (see
-`docs/scheduler.md`) - but only as a dry-run *recommendation*. A workload
+`docs/scheduler.md`) - but only as a dry-run _recommendation_. A workload
 is still assigned to an agent by an explicit admin action
 (`POST /api/admin/workloads/:id/assign`), never automatically.
 

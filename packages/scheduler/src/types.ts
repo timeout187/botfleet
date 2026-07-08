@@ -1,11 +1,5 @@
 export type AgentStatus =
-  | "enrolling"
-  | "online"
-  | "degraded"
-  | "disconnected"
-  | "draining"
-  | "maintenance"
-  | "disabled";
+  "enrolling" | "online" | "degraded" | "disconnected" | "draining" | "maintenance" | "disabled";
 
 export interface SchedulerAgent {
   id: string;

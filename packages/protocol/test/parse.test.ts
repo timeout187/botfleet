@@ -89,7 +89,12 @@ describe("parseControlPlaneToAgentMessage", () => {
     const message = createControlPlaneToAgentMessage(
       {
         type: "bot.restart",
-        payload: { workloadId: "wl-1", botId: "bot-1", generation: 1, idempotencyKey: randomUUID() },
+        payload: {
+          workloadId: "wl-1",
+          botId: "bot-1",
+          generation: 1,
+          idempotencyKey: randomUUID(),
+        },
       },
       { senderId: "control-plane" },
     );
@@ -116,7 +121,12 @@ describe("parseControlPlaneToAgentMessage", () => {
     const message = createControlPlaneToAgentMessage(
       {
         type: "bot.start",
-        payload: { workloadId: "wl-1", botId: "bot-1", generation: 1, idempotencyKey: randomUUID() },
+        payload: {
+          workloadId: "wl-1",
+          botId: "bot-1",
+          generation: 1,
+          idempotencyKey: randomUUID(),
+        },
       },
       { senderId: "control-plane" },
     );

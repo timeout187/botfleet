@@ -11,8 +11,14 @@ function parseLabels(raw: string | undefined): AgentLabels {
   return labels;
 }
 
+/** Defaults to `["node", "custom-executable"]` - `node` because that's
+ * what this agent's workload-runner.ts actually executes today (the
+ * only implemented runtime type), so an unconfigured agent is genuinely
+ * schedulable for a `runner.type: "node"` workload out of the box, not
+ * silently ineligible for everything until an operator remembers to set
+ * this env var. */
 function parseCapabilities(raw: string | undefined): AgentCapability[] {
-  if (!raw) return ["custom-executable"];
+  if (!raw) return ["node", "custom-executable"];
   return raw
     .split(",")
     .map((s) => s.trim())

@@ -167,7 +167,12 @@ export async function sendWorkloadCommand(
   const message = createControlPlaneToAgentMessage(
     {
       type: messageType,
-      payload: { workloadId, botId: workload.botId, generation: workload.generation, idempotencyKey },
+      payload: {
+        workloadId,
+        botId: workload.botId,
+        generation: workload.generation,
+        idempotencyKey,
+      },
     },
     { senderId: "control-plane" },
   );

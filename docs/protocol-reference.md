@@ -48,24 +48,24 @@ apply a message whose payload didn't fully validate.
 
 ## AgentToControlPlane messages
 
-| Type                   | Payload summary                                                                                                                                 |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agent.enroll`         | `enrollmentToken`, `agentName`, `hostname`, `architecture`, `operatingSystem`, `agentVersion`, `capabilities[]`, `labels`, optional `publicKey` |
-| `agent.heartbeat`      | `agentId`, `status`, `resources` (CPU/memory/disk/load), `workloadCount`                                                                        |
+| Type                   | Payload summary                                                                                                                                    |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent.enroll`         | `enrollmentToken`, `agentName`, `hostname`, `architecture`, `operatingSystem`, `agentVersion`, `capabilities[]`, `labels`, optional `publicKey`    |
+| `agent.heartbeat`      | `agentId`, `status`, `resources` (CPU/memory/disk/load), `workloadCount`                                                                           |
 | `agent.inventory`      | `agentId`, `workloads[]` (`workloadId`, `botId`, `generation`, `runtimeStatus`) - `generation` is the fencing token; see "Ownership fencing" below |
-| `agent.metrics`        | `agentId`, `samples[]` (`metric`, `value`, optional `unit`), capped at 500 samples/message                                                      |
-| `agent.command_ack`    | `agentId`, `commandId`, `idempotencyKey`                                                                                                        |
-| `agent.command_result` | `agentId`, `commandId`, `idempotencyKey`, `status` (`succeeded`\|`failed`), optional `safeError`                                                |
-| `bot.status`           | `botId`, `status`                                                                                                                               |
-| `bot.heartbeat`        | `botId`, `shardCount`, `guildCount`, optional `pingMs`                                                                                          |
-| `bot.ready`            | `botId`, `guildCount`, `shardCount`, optional `version`                                                                                         |
-| `bot.stopped`          | `botId`, optional `reason`                                                                                                                      |
-| `bot.crashed`          | `botId`, `safeError` (must already be redacted - never a raw stack trace or token)                                                              |
-| `bot.metrics`          | `botId`, `metric`, `value`, optional `unit`                                                                                                     |
-| `bot.log`              | `botId`, `level`, `message` (max 2000 chars)                                                                                                    |
-| `shard.status`         | `botId`, `shardId`, `status`, `guildCount`, optional `pingMs`                                                                                   |
-| `deployment.progress`  | `deploymentId`, `workloadId`, `phase`, optional `message`                                                                                       |
-| `deployment.result`    | `deploymentId`, `workloadId`, `status` (`succeeded`\|`failed`\|`rolled_back`), optional `safeError`                                             |
+| `agent.metrics`        | `agentId`, `samples[]` (`metric`, `value`, optional `unit`), capped at 500 samples/message                                                         |
+| `agent.command_ack`    | `agentId`, `commandId`, `idempotencyKey`                                                                                                           |
+| `agent.command_result` | `agentId`, `commandId`, `idempotencyKey`, `status` (`succeeded`\|`failed`), optional `safeError`                                                   |
+| `bot.status`           | `botId`, `status`                                                                                                                                  |
+| `bot.heartbeat`        | `botId`, `shardCount`, `guildCount`, optional `pingMs`                                                                                             |
+| `bot.ready`            | `botId`, `guildCount`, `shardCount`, optional `version`                                                                                            |
+| `bot.stopped`          | `botId`, optional `reason`                                                                                                                         |
+| `bot.crashed`          | `botId`, `safeError` (must already be redacted - never a raw stack trace or token)                                                                 |
+| `bot.metrics`          | `botId`, `metric`, `value`, optional `unit`                                                                                                        |
+| `bot.log`              | `botId`, `level`, `message` (max 2000 chars)                                                                                                       |
+| `shard.status`         | `botId`, `shardId`, `status`, `guildCount`, optional `pingMs`                                                                                      |
+| `deployment.progress`  | `deploymentId`, `workloadId`, `phase`, optional `message`                                                                                          |
+| `deployment.result`    | `deploymentId`, `workloadId`, `status` (`succeeded`\|`failed`\|`rolled_back`), optional `safeError`                                                |
 
 ## ControlPlaneToAgent messages
 
@@ -75,20 +75,20 @@ reconnect) must be a no-op on the agent, not a duplicate action. The four
 workload commands (`bot.start`/`stop`/`restart`/`update`) also require
 `generation` - see "Ownership fencing" below.
 
-| Type                       | Payload summary                                                                                                                                                                |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `agent.accepted`           | `agentId`, `agentCredentialFingerprint`, `heartbeatIntervalMs`, optional `credentialSecret` (only present the one time this follows a successful enrollment)                   |
-| `agent.rotate_certificate` | `agentId`, `newCertificateRef`                                                                                                                                                 |
-| `bot.start`                | `workloadId`, `botId`, `generation`, `idempotencyKey`                                                                                                                          |
-| `bot.stop`                 | `workloadId`, `botId`, `generation`, `idempotencyKey`                                                                                                                          |
-| `bot.restart`              | `workloadId`, `botId`, `generation`, `idempotencyKey`                                                                                                                          |
-| `bot.move`                 | `workloadId`, `botId`, `targetAgentId`, `idempotencyKey`                                                                                                                       |
+| Type                       | Payload summary                                                                                                                                                                              |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent.accepted`           | `agentId`, `agentCredentialFingerprint`, `heartbeatIntervalMs`, optional `credentialSecret` (only present the one time this follows a successful enrollment)                                 |
+| `agent.rotate_certificate` | `agentId`, `newCertificateRef`                                                                                                                                                               |
+| `bot.start`                | `workloadId`, `botId`, `generation`, `idempotencyKey`                                                                                                                                        |
+| `bot.stop`                 | `workloadId`, `botId`, `generation`, `idempotencyKey`                                                                                                                                        |
+| `bot.restart`              | `workloadId`, `botId`, `generation`, `idempotencyKey`                                                                                                                                        |
+| `bot.move`                 | `workloadId`, `botId`, `targetAgentId`, `idempotencyKey`                                                                                                                                     |
 | `bot.update`               | `workloadId`, `botId`, `generation`, `specification` (loosely-typed JSON object today - Phase 6's workload spec package validates the real shape before this is ever sent), `idempotencyKey` |
-| `worker.drain`             | `agentId`, `mode` (`graceful`\|`immediate`\|`maintenance-window`), `idempotencyKey`                                                                                            |
-| `deployment.prepare`       | `deploymentId`, `workloadId`, `artifactRef`, `idempotencyKey`                                                                                                                  |
-| `deployment.execute`       | `deploymentId`, `workloadId`, `idempotencyKey`                                                                                                                                 |
-| `deployment.rollback`      | `deploymentId`, `workloadId`, `targetReleaseId`, `idempotencyKey`                                                                                                              |
-| `configuration.refresh`    | `agentId`                                                                                                                                                                      |
+| `worker.drain`             | `agentId`, `mode` (`graceful`\|`immediate`\|`maintenance-window`), `idempotencyKey`                                                                                                          |
+| `deployment.prepare`       | `deploymentId`, `workloadId`, `artifactRef`, `idempotencyKey`                                                                                                                                |
+| `deployment.execute`       | `deploymentId`, `workloadId`, `idempotencyKey`                                                                                                                                               |
+| `deployment.rollback`      | `deploymentId`, `workloadId`, `targetReleaseId`, `idempotencyKey`                                                                                                                            |
+| `configuration.refresh`    | `agentId`                                                                                                                                                                                    |
 
 ## Ownership fencing
 

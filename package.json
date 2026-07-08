@@ -11,6 +11,8 @@
     "undici": "^6.27.0"
   },
   "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "dev": "npm run dev --workspace @botfleet/control-plane",
     "build": "npm run build --workspace @botfleet/protocol && npm run build --workspace @botfleet/workload-spec && npm run build --workspace @botfleet/scheduler && npm run build --workspace @botfleet/runtime-sdk && npm run build --workspace @botfleet/adapter-discordjs && npm run build --workspace @botfleet/adapter-eris && npm run build --workspace @botfleet/control-plane",
     "lint": "npm run lint --workspaces --if-present",
@@ -21,6 +23,7 @@
     "verify": "npm run lint && npm run typecheck && npm run test && npm run build",
     "worker:ai": "npm run worker:ai --workspace @botfleet/control-plane",
     "agent-gateway": "npm run agent-gateway --workspace @botfleet/control-plane",
-    "agent:dev": "npm run dev --workspace @botfleet/agent"
+    "agent:dev": "npm run dev --workspace @botfleet/agent",
+    "demo:distributed": "npm run demo:distributed --workspace @botfleet/control-plane"
   }
 }

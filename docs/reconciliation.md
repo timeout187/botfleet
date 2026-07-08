@@ -1,6 +1,6 @@
 # Reconciliation
 
-BotFleet's self-healing loop: it compares what each workload *should* be
+BotFleet's self-healing loop: it compares what each workload _should_ be
 doing (`Workload.desiredState`) against what it's actually observed to be
 doing (`Workload.observedState`), and re-issues a `start`/`stop` command
 whenever they disagree. See `docs/scheduler.md` for how a workload gets
@@ -79,15 +79,15 @@ Verified two ways:
    a real agent, assigned and started a real workload on it (a real
    `node -e 'setInterval(...)'` child process, confirmed via `ps aux`).
    Reassigned the workload to a different agent directly in the database
-   *without* notifying the original agent - simulating exactly what a
+   _without_ notifying the original agent - simulating exactly what a
    network partition or a missed message during a drain would leave
    behind. Within one heartbeat interval (~15s), the gateway's log showed
    `fencing agent <id>: reported running workload <id> (generation 2) it
-   no longer owns`, and the original agent's own log showed
+no longer owns`, and the original agent's own log showed
    `[workload ...] exited (code=null, signal=SIGTERM)` - the real process
    was actually killed, confirmed absent from `ps aux` afterward. The
    resulting `AgentCommand` (`bot.stop`, `status: succeeded`, `generation:
-   2`) and `workload.fence_stop` audit log entry (with `staleAgentId` and
+2`) and `workload.fence_stop` audit log entry (with `staleAgentId` and
    `staleGeneration`) both matched exactly what the code paths above
    predict.
 
@@ -116,7 +116,7 @@ workload assigned to it:
    then stops the old agent's copy.
 
 Starting the new copy before stopping the old one favors less downtime
-over a brief window where both *could* be running - which is exactly why
+over a brief window where both _could_ be running - which is exactly why
 ownership fencing above isn't optional: if the old agent is slow to
 receive or act on its stop, its next heartbeat's `agent.inventory` still
 gets caught and force-stopped, so the overlap window is bounded, not an
@@ -130,7 +130,7 @@ evacuated agent is).
 Verified: `apps/control-plane/test/agents/drain.test.ts` covers relocating
 a stopped workload (and disabling the source agent once empty),
 stranding a workload when no eligible agent exists, and relocating a
-*running* workload (issuing both the new agent's `bot.start` and the old
+_running_ workload (issuing both the new agent's `bot.start` and the old
 agent's `bot.stop`) - all against the real dev Postgres database and real
 BullMQ enqueue, not mocked.
 
@@ -151,7 +151,7 @@ are equally real failures for backoff purposes).
 - After 5 consecutive failures, the workload is marked
   `reconciliationSuspendedAt` instead - reconciliation stops touching it
   entirely until an admin calls `clearReconciliationFailure()` (`POST
-  /api/admin/workloads/:id/clear-failure`, a "Clear reconciliation
+/api/admin/workloads/:id/clear-failure`, a "Clear reconciliation
   failure" button on `/admin/workloads`). This is deliberately never
   automatic - only a human decides a persistently broken workload is
   worth retrying again.
@@ -173,12 +173,12 @@ enrolled `apps/agent` process (not mocked):
 - Created a real workload (a `node -e 'setInterval(...)'` process spec),
   assigned it to the real agent (`bot.update` cached the spec).
 - Directly desynced the DB row (`desiredState: running`, `observedState:
-  stopped`, no in-flight command) to simulate "something changed outside
+stopped`, no in-flight command) to simulate "something changed outside
   the normal command path."
 - The scheduled job (running for real, on its real 30s cadence, not
   manually invoked) picked it up on its next tick, issued a real
   `bot.start`, the agent spawned a real child process (confirmed via `ps
-  aux` showing the actual PID), and `observedState` flipped to `running`
+aux` showing the actual PID), and `observedState` flipped to `running`
   once the agent's `agent.command_result` arrived.
 - Flipped `desiredState` back to `stopped` the same way; the next tick
   issued a real `bot.stop`, the agent sent `SIGTERM` and the process
@@ -186,14 +186,14 @@ enrolled `apps/agent` process (not mocked):
   and `observedState` flipped to `stopped`.
 - Confirmed the in-flight guard works: while a command was genuinely
   pending, subsequent ticks skipped the workload with reason `"a command
-  is already in flight"` and did not create a duplicate command.
+is already in flight"` and did not create a duplicate command.
 
 ## What's still explicitly NOT implemented
 
 Per the mission's own honesty requirement:
 
 - **Multi-instance load.** The advisory lock makes concurrent
-  control-plane instances *safe* (no duplicate commands), but there's no
+  control-plane instances _safe_ (no duplicate commands), but there's no
   leader election or work-sharding - every instance still evaluates every
   workload each tick, just only one at a time actually acts. Fine at
   today's scale; would need real partitioning to scale out the

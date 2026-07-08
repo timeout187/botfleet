@@ -1,6 +1,6 @@
 # Scheduler
 
-How BotFleet decides which agent a workload *should* run on. See
+How BotFleet decides which agent a workload _should_ run on. See
 `docs/reconciliation.md` for what actually happens once a workload is
 assigned, and `docs/distributed-audit.md` for the mission this is Phase 8
 of.
@@ -46,15 +46,15 @@ just picks nothing.
 
 Eligible agents are scored and ranked (`scoreEligibleAgent()`):
 
-| Preference | Points | Why |
-|---|---|---|
-| Region match (`preferredRegion`) | 30 | Latency/data-locality preference, not a hard rule |
-| Preferred label match | 10 each | Workload-declared soft affinity |
-| Memory headroom | up to 20 | Prefers agents with more free capacity, scaled by pressure |
-| Fewer current workloads | up to 10 | Spreads load rather than always picking the same agent |
-| Customer anti-affinity | 10 | Avoids co-locating two workloads from the same customer on one agent |
-| Stability bonus | 10 | If the workload already has a `currentAgentId` and it's still eligible, prefer staying put over an unnecessary move |
-| Recent failure penalty | -5 per failure | Agents with `AgentCommand` failures in the last hour (`RECENT_FAILURE_WINDOW_MS`) in `lib/scheduling.ts`) are penalized, not excluded |
+| Preference                       | Points         | Why                                                                                                                                   |
+| -------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Region match (`preferredRegion`) | 30             | Latency/data-locality preference, not a hard rule                                                                                     |
+| Preferred label match            | 10 each        | Workload-declared soft affinity                                                                                                       |
+| Memory headroom                  | up to 20       | Prefers agents with more free capacity, scaled by pressure                                                                            |
+| Fewer current workloads          | up to 10       | Spreads load rather than always picking the same agent                                                                                |
+| Customer anti-affinity           | 10             | Avoids co-locating two workloads from the same customer on one agent                                                                  |
+| Stability bonus                  | 10             | If the workload already has a `currentAgentId` and it's still eligible, prefer staying put over an unnecessary move                   |
+| Recent failure penalty           | -5 per failure | Agents with `AgentCommand` failures in the last hour (`RECENT_FAILURE_WINDOW_MS`) in `lib/scheduling.ts`) are penalized, not excluded |
 
 Ties are broken deterministically by `agentId.localeCompare()` - the same
 input always produces the same output, which is what makes this testable

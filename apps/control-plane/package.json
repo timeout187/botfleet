@@ -11,6 +11,7 @@
     "test": "vitest run",
     "worker:ai": "tsx lib/queue/ai-worker.ts",
     "agent-gateway": "tsx lib/agent-gateway/server.ts",
+    "demo:distributed": "tsx scripts/demo-distributed.ts",
     "worker:build-image": "docker build -t botfleet-worker-runtime:latest ./worker-runtime"
   },
   "dependencies": {

@@ -51,10 +51,7 @@ describe("scheduleWorkload - hard requirements", () => {
       agent({ id: "a1", labels: { region: "us-east" } }),
       agent({ id: "a2", labels: { region: "eu-central" } }),
     ];
-    const result = scheduleWorkload(
-      workload({ requiredLabels: { region: "eu-central" } }),
-      agents,
-    );
+    const result = scheduleWorkload(workload({ requiredLabels: { region: "eu-central" } }), agents);
     expect(result.selectedAgentId).toBe("a2");
   });
 
@@ -86,7 +83,10 @@ describe("scheduleWorkload - hard requirements", () => {
   });
 
   it("returns no selection when every agent is ineligible", () => {
-    const agents = [agent({ id: "a1", status: "disabled" }), agent({ id: "a2", status: "disconnected" })];
+    const agents = [
+      agent({ id: "a1", status: "disabled" }),
+      agent({ id: "a2", status: "disconnected" }),
+    ];
     const result = scheduleWorkload(workload(), agents);
     expect(result.selectedAgentId).toBeNull();
     expect(result.reason).toMatch(/no eligible/i);

@@ -14,7 +14,10 @@ interface WorkloadSpecShape {
   spec?: {
     runner?: { type?: string };
     resources?: { memoryMb?: number };
-    placement?: { requiredLabels?: Record<string, string>; preferredLabels?: Record<string, string> };
+    placement?: {
+      requiredLabels?: Record<string, string>;
+      preferredLabels?: Record<string, string>;
+    };
   };
 }
 

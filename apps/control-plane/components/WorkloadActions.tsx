@@ -84,12 +84,7 @@ export function WorkloadActions({
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <Button
-        variant="ghost"
-        disabled={pending !== null}
-        onClick={recommend}
-        className="text-xs"
-      >
+      <Button variant="ghost" disabled={pending !== null} onClick={recommend} className="text-xs">
         {pending === "recommend" ? "Scoring…" : "Get recommendation"}
       </Button>
       {recommendation && (
@@ -130,7 +125,12 @@ export function WorkloadActions({
         </Button>
       </div>
       {reconciliationSuspended && (
-        <Button variant="ghost" disabled={pending !== null} onClick={clearFailure} className="text-xs">
+        <Button
+          variant="ghost"
+          disabled={pending !== null}
+          onClick={clearFailure}
+          className="text-xs"
+        >
           {pending === "clear-failure" ? "Clearing…" : "Clear reconciliation failure"}
         </Button>
       )}

@@ -2,7 +2,11 @@ import { describe, it, expect } from "vitest";
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { drainAgent, AgentNotFoundError } from "@/lib/agents/drain";
-import { AgentStatus, WorkloadDesiredState, WorkloadObservedState } from "@/app/generated/prisma/client";
+import {
+  AgentStatus,
+  WorkloadDesiredState,
+  WorkloadObservedState,
+} from "@/app/generated/prisma/client";
 
 /**
  * Exercises drainAgent() against the real dev Postgres DB + real Redis
@@ -193,37 +197,33 @@ describe("drainAgent", () => {
     }
   });
 
-  it(
-    "relocates a running workload, issues a start on the new agent, and stops the old one",
-    async () => {
-      const f = newFixtures();
-      try {
-        const actorId = await makeActor(f);
-        const source = await makeAgent(f, `drain-source-c-${randomUUID().slice(0, 8)}`);
-        const target = await makeAgent(f, `drain-target-c-${randomUUID().slice(0, 8)}`);
-        const workload = await makeWorkload(f, {
-          agentId: source.id,
-          desiredState: WorkloadDesiredState.running,
-          observedState: WorkloadObservedState.running,
-        });
+  it("relocates a running workload, issues a start on the new agent, and stops the old one", async () => {
+    const f = newFixtures();
+    try {
+      const actorId = await makeActor(f);
+      const source = await makeAgent(f, `drain-source-c-${randomUUID().slice(0, 8)}`);
+      const target = await makeAgent(f, `drain-target-c-${randomUUID().slice(0, 8)}`);
+      const workload = await makeWorkload(f, {
+        agentId: source.id,
+        desiredState: WorkloadDesiredState.running,
+        observedState: WorkloadObservedState.running,
+      });
 
-        const result = await drainAgent(source.id, actorId);
+      const result = await drainAgent(source.id, actorId);
 
-        expect(result.relocated).toEqual([{ workloadId: workload.id, toAgentId: target.id }]);
+      expect(result.relocated).toEqual([{ workloadId: workload.id, toAgentId: target.id }]);
 
-        const startCommand = await db.agentCommand.findFirst({
-          where: { agentId: target.id, workloadId: workload.id, commandType: "bot.start" },
-        });
-        expect(startCommand).not.toBeNull();
+      const startCommand = await db.agentCommand.findFirst({
+        where: { agentId: target.id, workloadId: workload.id, commandType: "bot.start" },
+      });
+      expect(startCommand).not.toBeNull();
 
-        const stopCommand = await db.agentCommand.findFirst({
-          where: { agentId: source.id, workloadId: workload.id, commandType: "bot.stop" },
-        });
-        expect(stopCommand).not.toBeNull();
-      } finally {
-        await cleanup(f);
-      }
-    },
-    15_000,
-  );
+      const stopCommand = await db.agentCommand.findFirst({
+        where: { agentId: source.id, workloadId: workload.id, commandType: "bot.stop" },
+      });
+      expect(stopCommand).not.toBeNull();
+    } finally {
+      await cleanup(f);
+    }
+  }, 15_000);
 });

@@ -2,7 +2,11 @@ import { describe, it, expect } from "vitest";
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { fenceStaleAgent } from "@/lib/workloads";
-import { AgentStatus, WorkloadDesiredState, WorkloadObservedState } from "@/app/generated/prisma/client";
+import {
+  AgentStatus,
+  WorkloadDesiredState,
+  WorkloadObservedState,
+} from "@/app/generated/prisma/client";
 
 /**
  * fenceStaleAgent() is the actual mechanism behind

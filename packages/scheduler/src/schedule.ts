@@ -66,7 +66,10 @@ function scoreEligibleAgent(
 
   for (const [key, value] of Object.entries(workload.preferredLabels)) {
     if (agent.labels[key] === value) {
-      breakdown.push({ label: `preferred label ${key}=${value} matched`, points: PREFERRED_LABEL_POINTS });
+      breakdown.push({
+        label: `preferred label ${key}=${value} matched`,
+        points: PREFERRED_LABEL_POINTS,
+      });
     }
   }
 
@@ -88,7 +91,10 @@ function scoreEligibleAgent(
     (p) => p.customerId === workload.customerId && p.agentId === agent.id,
   );
   if (!hasCustomerNeighbor) {
-    breakdown.push({ label: "customer anti-affinity (no sibling bot here)", points: CUSTOMER_ANTI_AFFINITY_POINTS });
+    breakdown.push({
+      label: "customer anti-affinity (no sibling bot here)",
+      points: CUSTOMER_ANTI_AFFINITY_POINTS,
+    });
   }
 
   if (agent.recentFailureCount) {
@@ -99,7 +105,10 @@ function scoreEligibleAgent(
   }
 
   if (workload.currentAgentId === agent.id) {
-    breakdown.push({ label: "already running here (avoids an unnecessary move)", points: STABILITY_BONUS_POINTS });
+    breakdown.push({
+      label: "already running here (avoids an unnecessary move)",
+      points: STABILITY_BONUS_POINTS,
+    });
   }
 
   return breakdown;
@@ -140,7 +149,12 @@ export function scheduleWorkload(
           totalScore: 0,
         };
       }
-      const breakdown = scoreEligibleAgent(agent, workload, customerPlacements, averageWorkloadCount);
+      const breakdown = scoreEligibleAgent(
+        agent,
+        workload,
+        customerPlacements,
+        averageWorkloadCount,
+      );
       const totalScore = breakdown.reduce((sum, entry) => sum + entry.points, 0);
       return { agentId: agent.id, agentName: agent.name, eligible: true, breakdown, totalScore };
     })
