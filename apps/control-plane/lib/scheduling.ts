@@ -18,32 +18,35 @@ interface WorkloadSpecShape {
   };
 }
 
-/**
- * Computes (and records, as a dry-run `PlacementDecision`) a scheduling
- * recommendation for a workload using `@botfleet/scheduler`'s pure
- * scoring function. This never assigns anything itself - automatic
- * scheduling is disabled by design (see docs/scheduler.md); applying a
- * recommendation is a separate, explicit admin action
- * (`POST /api/admin/workloads/:id/assign`).
- */
-export async function computeSchedulingRecommendation(
-  workloadId: string,
-): Promise<{ ok: true; decision: PlacementDecision } | { ok: false; reason: string }> {
-  const workload = await db.workload.findUnique({
-    where: { id: workloadId },
-    include: { bot: { select: { customerId: true } } },
-  });
-  if (!workload) return { ok: false, reason: "workload not found" };
+type WorkloadWithBot = { assignedAgentId: string | null; bot: { customerId: string } };
 
+/**
+ * Loads the live agent/workload/recent-failure state and shapes it into
+ * `@botfleet/scheduler`'s input types - shared by `computeSchedulingRecommendation`
+ * (dry-run recommendations) and `lib/agents/drain.ts` (real relocation
+ * during evacuation) so both go through the exact same "what does the
+ * fleet look like right now" snapshot logic.
+ */
+export async function buildSchedulerContext(excludeWorkloadId?: string): Promise<{
+  agents: SchedulerAgent[];
+  allWorkloads: WorkloadWithBot[];
+  customerPlacements: CustomerPlacement[];
+}> {
   const [agentRows, allWorkloads, recentFailures] = await Promise.all([
     db.agent.findMany(),
     db.workload.findMany({
-      where: { assignedAgentId: { not: null }, id: { not: workloadId } },
+      where: {
+        assignedAgentId: { not: null },
+        ...(excludeWorkloadId ? { id: { not: excludeWorkloadId } } : {}),
+      },
       include: { bot: { select: { customerId: true } } },
     }),
     db.agentCommand.groupBy({
       by: ["agentId"],
-      where: { status: AgentCommandStatus.failed, createdAt: { gt: new Date(Date.now() - RECENT_FAILURE_WINDOW_MS) } },
+      where: {
+        status: AgentCommandStatus.failed,
+        createdAt: { gt: new Date(Date.now() - RECENT_FAILURE_WINDOW_MS) },
+      },
       _count: { _all: true },
     }),
   ]);
@@ -64,8 +67,21 @@ export async function computeSchedulingRecommendation(
     recentFailureCount: failureCountByAgent.get(a.id) ?? 0,
   }));
 
+  const customerPlacements: CustomerPlacement[] = allWorkloads
+    .filter((w) => w.assignedAgentId)
+    .map((w) => ({ customerId: w.bot.customerId, agentId: w.assignedAgentId! }));
+
+  return { agents, allWorkloads, customerPlacements };
+}
+
+export function toSchedulerWorkload(workload: {
+  id: string;
+  specificationJson: unknown;
+  assignedAgentId: string | null;
+  bot: { customerId: string };
+}): SchedulerWorkload {
   const spec = workload.specificationJson as unknown as WorkloadSpecShape;
-  const schedulerWorkload: SchedulerWorkload = {
+  return {
     id: workload.id,
     customerId: workload.bot.customerId,
     requiredCapability: spec.spec?.runner?.type,
@@ -74,11 +90,27 @@ export async function computeSchedulingRecommendation(
     preferredLabels: spec.spec?.placement?.preferredLabels ?? {},
     currentAgentId: workload.assignedAgentId,
   };
+}
 
-  const customerPlacements: CustomerPlacement[] = allWorkloads
-    .filter((w) => w.assignedAgentId)
-    .map((w) => ({ customerId: w.bot.customerId, agentId: w.assignedAgentId! }));
+/**
+ * Computes (and records, as a dry-run `PlacementDecision`) a scheduling
+ * recommendation for a workload using `@botfleet/scheduler`'s pure
+ * scoring function. This never assigns anything itself - automatic
+ * scheduling is disabled by design (see docs/scheduler.md); applying a
+ * recommendation is a separate, explicit admin action
+ * (`POST /api/admin/workloads/:id/assign`).
+ */
+export async function computeSchedulingRecommendation(
+  workloadId: string,
+): Promise<{ ok: true; decision: PlacementDecision } | { ok: false; reason: string }> {
+  const workload = await db.workload.findUnique({
+    where: { id: workloadId },
+    include: { bot: { select: { customerId: true } } },
+  });
+  if (!workload) return { ok: false, reason: "workload not found" };
 
+  const { agents, customerPlacements } = await buildSchedulerContext(workloadId);
+  const schedulerWorkload = toSchedulerWorkload(workload);
   const decision = scheduleWorkload(schedulerWorkload, agents, customerPlacements);
 
   await db.placementDecision.create({

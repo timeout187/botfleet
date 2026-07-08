@@ -3,6 +3,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { agentStatusVariant, formatStatusLabel } from "@/components/status";
 import { CreateEnrollmentTokenDialog } from "@/components/CreateEnrollmentTokenDialog";
+import { AgentDrainButton } from "@/components/AgentDrainButton";
 
 function timeAgo(date: Date | null): string {
   if (!date) return "never";
@@ -75,6 +76,11 @@ export default async function AgentsPage() {
                 </dd>
               </div>
             </dl>
+            {(a.status === "online" || a.status === "degraded" || a.status === "draining") && (
+              <div className="mt-3 border-t border-zinc-800 pt-3">
+                <AgentDrainButton agentId={a.id} />
+              </div>
+            )}
           </Card>
         ))}
         {agents.length === 0 && (

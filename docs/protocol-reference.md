@@ -52,7 +52,7 @@ apply a message whose payload didn't fully validate.
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `agent.enroll`         | `enrollmentToken`, `agentName`, `hostname`, `architecture`, `operatingSystem`, `agentVersion`, `capabilities[]`, `labels`, optional `publicKey` |
 | `agent.heartbeat`      | `agentId`, `status`, `resources` (CPU/memory/disk/load), `workloadCount`                                                                        |
-| `agent.inventory`      | `agentId`, `workloads[]` (`workloadId`, `botId`, `runtimeStatus`)                                                                               |
+| `agent.inventory`      | `agentId`, `workloads[]` (`workloadId`, `botId`, `generation`, `runtimeStatus`) - `generation` is the fencing token; see "Ownership fencing" below |
 | `agent.metrics`        | `agentId`, `samples[]` (`metric`, `value`, optional `unit`), capped at 500 samples/message                                                      |
 | `agent.command_ack`    | `agentId`, `commandId`, `idempotencyKey`                                                                                                        |
 | `agent.command_result` | `agentId`, `commandId`, `idempotencyKey`, `status` (`succeeded`\|`failed`), optional `safeError`                                                |
@@ -71,22 +71,41 @@ apply a message whose payload didn't fully validate.
 
 Every command below (`bot.*`, `worker.drain`, `deployment.*`) requires an
 `idempotencyKey` - re-delivering the same command (e.g. after a
-reconnect) must be a no-op on the agent, not a duplicate action.
+reconnect) must be a no-op on the agent, not a duplicate action. The four
+workload commands (`bot.start`/`stop`/`restart`/`update`) also require
+`generation` - see "Ownership fencing" below.
 
 | Type                       | Payload summary                                                                                                                                                                |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `agent.accepted`           | `agentId`, `agentCredentialFingerprint`, `heartbeatIntervalMs`, optional `credentialSecret` (only present the one time this follows a successful enrollment)                   |
 | `agent.rotate_certificate` | `agentId`, `newCertificateRef`                                                                                                                                                 |
-| `bot.start`                | `workloadId`, `botId`, `idempotencyKey`                                                                                                                                        |
-| `bot.stop`                 | `workloadId`, `botId`, `idempotencyKey`                                                                                                                                        |
-| `bot.restart`              | `workloadId`, `botId`, `idempotencyKey`                                                                                                                                        |
+| `bot.start`                | `workloadId`, `botId`, `generation`, `idempotencyKey`                                                                                                                          |
+| `bot.stop`                 | `workloadId`, `botId`, `generation`, `idempotencyKey`                                                                                                                          |
+| `bot.restart`              | `workloadId`, `botId`, `generation`, `idempotencyKey`                                                                                                                          |
 | `bot.move`                 | `workloadId`, `botId`, `targetAgentId`, `idempotencyKey`                                                                                                                       |
-| `bot.update`               | `workloadId`, `botId`, `specification` (loosely-typed JSON object today - Phase 6's workload spec package validates the real shape before this is ever sent), `idempotencyKey` |
+| `bot.update`               | `workloadId`, `botId`, `generation`, `specification` (loosely-typed JSON object today - Phase 6's workload spec package validates the real shape before this is ever sent), `idempotencyKey` |
 | `worker.drain`             | `agentId`, `mode` (`graceful`\|`immediate`\|`maintenance-window`), `idempotencyKey`                                                                                            |
 | `deployment.prepare`       | `deploymentId`, `workloadId`, `artifactRef`, `idempotencyKey`                                                                                                                  |
 | `deployment.execute`       | `deploymentId`, `workloadId`, `idempotencyKey`                                                                                                                                 |
 | `deployment.rollback`      | `deploymentId`, `workloadId`, `targetReleaseId`, `idempotencyKey`                                                                                                              |
 | `configuration.refresh`    | `agentId`                                                                                                                                                                      |
+
+## Ownership fencing
+
+`Workload.generation` (`apps/control-plane/prisma/schema.prisma`) is
+bumped every time a workload is (re)assigned to an agent
+(`assignWorkloadToAgent`, `lib/workloads.ts`) and carried on every
+`bot.start`/`stop`/`restart`/`update` command issued after that. Every
+agent reports back, alongside each heartbeat, which workloads it
+currently believes it's running and at what generation
+(`agent.inventory`). The gateway (`lib/agent-gateway/server.ts`) compares
+each reported entry against `Workload.assignedAgentId`: if the reporting
+agent isn't the workload's current owner, it's a stale agent - reassigned
+away while it was disconnected, partitioned, or otherwise out of contact -
+and the gateway immediately fences it with a `bot.stop`, audited as
+`workload.fence_stop`. This is what actually prevents two agents from
+running the same workload at once after a reconnect; see
+`docs/reconciliation.md` for the full mechanism and its verified test.
 
 ## Replay protection
 

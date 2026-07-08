@@ -49,14 +49,23 @@ export async function createWorkload(
   return { ok: true, workloadId: workload.id };
 }
 
-async function recordAndEnqueueCommand(params: {
+/**
+ * Records a durable `AgentCommand` row and enqueues its delivery. Exported
+ * (not just used internally) so `lib/agent-gateway/server.ts` can issue a
+ * fencing stop straight to a stale agent - one that's no longer
+ * `workload.assignedAgentId` - using the exact same recording path as
+ * every admin-initiated command, just with an explicit `agentId` that
+ * isn't derived from the workload's current assignment.
+ */
+export async function recordAndEnqueueCommand(params: {
   agentId: string;
-  workloadId: string;
+  workloadId: string | null;
   commandType: string;
   payloadJson: unknown;
   message: unknown;
   actorUserId: string | null;
   idempotencyKey: string;
+  generation?: number;
 }): Promise<void> {
   await db.agentCommand.create({
     data: {
@@ -66,6 +75,7 @@ async function recordAndEnqueueCommand(params: {
       payloadJson: params.payloadJson as Prisma.InputJsonValue,
       idempotencyKey: params.idempotencyKey,
       createdById: params.actorUserId,
+      generation: params.generation,
     },
   });
   await enqueueAgentCommand({ agentId: params.agentId, message: params.message });
@@ -77,6 +87,12 @@ export type AssignWorkloadResult = { ok: true } | { ok: false; reason: string };
  * Assigns a workload to an agent and pushes its spec via `bot.update` -
  * the agent caches the spec by workloadId (apps/agent/src/workload-runner.ts)
  * so a later `bot.start` doesn't need to carry the spec again.
+ *
+ * Bumps `generation` on every call, including reassignment to a
+ * different agent (evacuation/drain) - this is the fencing token
+ * (docs/reconciliation.md's "Ownership fencing"): the previous agent, if
+ * it reconnects after a partition still believing it owns this workload,
+ * reports a generation that no longer matches, and gets fenced.
  */
 export async function assignWorkloadToAgent(
   workloadId: string,
@@ -89,7 +105,11 @@ export async function assignWorkloadToAgent(
   const agent = await db.agent.findUnique({ where: { id: agentId } });
   if (!agent) return { ok: false, reason: "agent not found" };
 
-  await db.workload.update({ where: { id: workloadId }, data: { assignedAgentId: agentId } });
+  const previousAgentId = workload.assignedAgentId;
+  const updated = await db.workload.update({
+    where: { id: workloadId },
+    data: { assignedAgentId: agentId, generation: { increment: 1 } },
+  });
 
   const idempotencyKey = randomUUID();
   const message = createControlPlaneToAgentMessage(
@@ -98,6 +118,7 @@ export async function assignWorkloadToAgent(
       payload: {
         workloadId,
         botId: workload.botId,
+        generation: updated.generation,
         specification: workload.specificationJson as Record<string, unknown>,
         idempotencyKey,
       },
@@ -113,6 +134,7 @@ export async function assignWorkloadToAgent(
     message,
     actorUserId,
     idempotencyKey,
+    generation: updated.generation,
   });
 
   await writeAuditLog({
@@ -120,7 +142,7 @@ export async function assignWorkloadToAgent(
     action: "workload.assign",
     targetType: "workload",
     targetId: workloadId,
-    metadata: { agentId },
+    metadata: { agentId, previousAgentId, generation: updated.generation },
   });
 
   return { ok: true };
@@ -145,7 +167,7 @@ export async function sendWorkloadCommand(
   const message = createControlPlaneToAgentMessage(
     {
       type: messageType,
-      payload: { workloadId, botId: workload.botId, idempotencyKey },
+      payload: { workloadId, botId: workload.botId, generation: workload.generation, idempotencyKey },
     },
     { senderId: "control-plane" },
   );
@@ -158,6 +180,7 @@ export async function sendWorkloadCommand(
     message,
     actorUserId,
     idempotencyKey,
+    generation: workload.generation,
   });
 
   const desiredState = commandType === "stop" ? "stopped" : "running";
@@ -172,6 +195,60 @@ export async function sendWorkloadCommand(
   });
 
   return { ok: true };
+}
+
+/**
+ * Issues an unconditional `bot.stop` to an agent that reported (via
+ * `agent.inventory`) that it's still running a workload it no longer
+ * owns - the actual split-brain/duplicate-execution prevention mechanism
+ * (docs/reconciliation.md's "Ownership fencing"). Called only from
+ * `lib/agent-gateway/server.ts`'s `handleInventory`, never from an admin
+ * action - this always targets the *stale* agent, which is why it can't
+ * reuse `sendWorkloadCommand` (that function always targets
+ * `workload.assignedAgentId`, the current owner).
+ */
+export async function fenceStaleAgent(params: {
+  staleAgentId: string;
+  workloadId: string;
+  botId: string;
+  staleGeneration: number;
+}): Promise<void> {
+  const idempotencyKey = randomUUID();
+  const message = createControlPlaneToAgentMessage(
+    {
+      type: "bot.stop",
+      payload: {
+        workloadId: params.workloadId,
+        botId: params.botId,
+        generation: params.staleGeneration,
+        idempotencyKey,
+      },
+    },
+    { senderId: "control-plane" },
+  );
+
+  await recordAndEnqueueCommand({
+    agentId: params.staleAgentId,
+    workloadId: params.workloadId,
+    commandType: "bot.stop",
+    payloadJson: message.payload,
+    message,
+    actorUserId: null,
+    idempotencyKey,
+    generation: params.staleGeneration,
+  });
+
+  await writeAuditLog({
+    actorUserId: null,
+    action: "workload.fence_stop",
+    targetType: "workload",
+    targetId: params.workloadId,
+    metadata: {
+      staleAgentId: params.staleAgentId,
+      staleGeneration: params.staleGeneration,
+      reason: "agent reported running a workload no longer assigned to it",
+    },
+  });
 }
 
 export type { WorkloadSpec };

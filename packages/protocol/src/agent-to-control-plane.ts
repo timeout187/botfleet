@@ -30,12 +30,21 @@ const agentHeartbeatPayload = z.object({
   workloadCount: z.number().int().nonnegative(),
 });
 
+/** Sent alongside every heartbeat: every workload this agent currently
+ * believes it's running, and at what generation (see
+ * control-plane-to-agent.ts's `workloadCommandPayload` doc comment). The
+ * gateway compares each entry against `Workload.assignedAgentId` - an
+ * agent reporting a workload it no longer owns (reassigned elsewhere
+ * while it was disconnected/partitioned) gets fenced with an immediate
+ * `bot.stop`, which is this repo's actual split-brain/duplicate-execution
+ * prevention mechanism (see docs/reconciliation.md). */
 const agentInventoryPayload = z.object({
   agentId: z.string().min(1),
   workloads: z.array(
     z.object({
       workloadId: z.string().min(1),
       botId: z.string().min(1),
+      generation: z.number().int().positive(),
       runtimeStatus: botRuntimeStatusSchema,
     }),
   ),

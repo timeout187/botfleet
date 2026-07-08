@@ -19,10 +19,16 @@ const agentRotateCertificatePayload = z.object({
 
 /** Every start/stop/restart/move/update command below shares this shape -
  * `idempotencyKey` is mandatory so re-delivering the same command after a
- * reconnect is a no-op on the agent, never a duplicate action. */
+ * reconnect is a no-op on the agent, never a duplicate action.
+ * `generation` is the fencing token (see docs/reconciliation.md's
+ * "Ownership fencing" section): it's whatever `Workload.generation` was
+ * at the moment this command was issued, bumped on every reassignment,
+ * and echoed back by the agent in `agent.inventory` so the control plane
+ * can tell a current owner apart from a stale one after a reconnect. */
 const workloadCommandPayload = z.object({
   workloadId: z.string().min(1),
   botId: z.string().min(1),
+  generation: z.number().int().positive(),
   idempotencyKey: idempotencyKeySchema,
 });
 

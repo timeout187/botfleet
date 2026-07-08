@@ -1,6 +1,12 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { randomUUID } from "node:crypto";
-import { cacheWorkloadSpec, startWorkload, stopWorkload, isRunning } from "../src/workload-runner";
+import {
+  cacheWorkloadSpec,
+  startWorkload,
+  stopWorkload,
+  isRunning,
+  getRunningInventory,
+} from "../src/workload-runner";
 
 // Every test here spawns a real Node child process (a trivial one-liner
 // via `node -e`) - never mocked - the same way the rest of this project
@@ -36,7 +42,7 @@ describe("workload-runner (real child processes)", () => {
 
   it("rejects an invalid spec at cache time", () => {
     const workloadId = randomUUID();
-    const result = cacheWorkloadSpec(workloadId, "bot-1", { not: "a valid spec" });
+    const result = cacheWorkloadSpec(workloadId, "bot-1", { not: "a valid spec" }, 1);
     expect(result.ok).toBe(false);
   });
 
@@ -48,6 +54,7 @@ describe("workload-runner (real child processes)", () => {
       workloadId,
       "bot-1",
       nodeSpec("setInterval(() => {}, 60000)"),
+      1,
     );
     expect(cacheResult.ok).toBe(true);
 
@@ -56,17 +63,19 @@ describe("workload-runner (real child processes)", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 200));
     expect(isRunning(workloadId)).toBe(true);
+    expect(getRunningInventory()).toContainEqual({ workloadId, botId: "bot-1", generation: 1 });
 
     const stopResult = await stopWorkload(workloadId);
     expect(stopResult.ok).toBe(true);
     expect(isRunning(workloadId)).toBe(false);
+    expect(getRunningInventory().some((w) => w.workloadId === workloadId)).toBe(false);
   });
 
   it("rejects starting the same workload twice while already running", async () => {
     const workloadId = randomUUID();
     activeWorkloadIds.push(workloadId);
 
-    cacheWorkloadSpec(workloadId, "bot-1", nodeSpec("setInterval(() => {}, 60000)"));
+    cacheWorkloadSpec(workloadId, "bot-1", nodeSpec("setInterval(() => {}, 60000)"), 1);
     expect(startWorkload(workloadId).ok).toBe(true);
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -85,6 +94,7 @@ describe("workload-runner (real child processes)", () => {
       workloadId,
       "bot-1",
       nodeSpec("process.on('SIGTERM', () => {}); setInterval(() => {}, 60000);"),
+      1,
     );
     startWorkload(workloadId);
     await new Promise((resolve) => setTimeout(resolve, 200));
@@ -99,7 +109,7 @@ describe("workload-runner (real child processes)", () => {
     const workloadId = randomUUID();
     activeWorkloadIds.push(workloadId);
 
-    cacheWorkloadSpec(workloadId, "bot-1", nodeSpec("process.exit(0)"));
+    cacheWorkloadSpec(workloadId, "bot-1", nodeSpec("process.exit(0)"), 1);
     startWorkload(workloadId);
 
     await new Promise((resolve) => setTimeout(resolve, 300));

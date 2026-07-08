@@ -55,6 +55,7 @@ export default async function WorkloadsPage() {
               <th className="pb-2 font-medium">Desired</th>
               <th className="pb-2 font-medium">Observed</th>
               <th className="pb-2 font-medium">Assigned agent</th>
+              <th className="pb-2 font-medium">Reconciliation</th>
               <th className="pb-2 font-medium text-right">Actions</th>
             </tr>
           </thead>
@@ -74,17 +75,27 @@ export default async function WorkloadsPage() {
                 </td>
                 <td className="py-3 text-zinc-400">{w.assignedAgent?.name ?? "—"}</td>
                 <td className="py-3">
+                  {w.reconciliationSuspendedAt ? (
+                    <Badge variant="danger">Suspended ({w.reconcileAttempts} attempts)</Badge>
+                  ) : w.nextReconcileAttemptAt && w.nextReconcileAttemptAt > new Date() ? (
+                    <Badge variant="info">Backing off</Badge>
+                  ) : (
+                    <span className="text-zinc-600">—</span>
+                  )}
+                </td>
+                <td className="py-3">
                   <WorkloadActions
                     workloadId={w.id}
                     assignedAgentId={w.assignedAgentId}
                     agents={agents}
+                    reconciliationSuspended={Boolean(w.reconciliationSuspendedAt)}
                   />
                 </td>
               </tr>
             ))}
             {workloads.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-8 text-center text-zinc-500">
+                <td colSpan={6} className="py-8 text-center text-zinc-500">
                   No workloads yet.
                 </td>
               </tr>

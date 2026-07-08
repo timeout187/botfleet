@@ -122,12 +122,43 @@ This is a large, multi-phase effort; status:
   corrected on its own schedule (not manually triggered), plus 4 real-DB
   integration tests covering all four branches.
 
+- **Phase 10 - agent draining, workload evacuation, ownership fencing**
+  (v0.1.0 stabilization pass, `lib/agents/drain.ts`,
+  `lib/agent-gateway/server.ts`'s `handleInventory()`): `POST
+  /api/admin/agents/:id/drain` marks an agent `draining` and relocates
+  every workload it holds onto another eligible online agent using the
+  real `@botfleet/scheduler` scoring function, stranding (not silently
+  dropping) anything with no eligible target. The actual
+  duplicate-execution/split-brain prevention mechanism is `Workload.generation`
+  (bumped on every reassignment, carried on every workload command) plus
+  `agent.inventory` - every agent reports what it's running and at what
+  generation on every heartbeat, and the gateway immediately fences
+  (force-stops) any agent reporting a workload it no longer owns. This
+  closes the mission's Phase 10 requirement and the stabilization pass's
+  "prevent duplicate execution after reconnect/partition" and "split-brain
+  protection" items with one mechanism, not two. See
+  `docs/reconciliation.md`'s "Ownership fencing" and "Safe draining"
+  sections for the full design and what's verified (real Postgres/Redis
+  integration tests for both `drainAgent()` and `fenceStaleAgent()`; the
+  full live multi-agent path is exercised in `npm run demo:distributed`).
+- **v0.1.0 stabilization: distributed locking + bounded retry/backoff**
+  (`lib/reconciliation.ts`, `lib/agent-gateway/server.ts`'s
+  `markCommandOutcome()`): the reconciliation tick now runs inside a real
+  Postgres `pg_try_advisory_xact_lock`, so a second control-plane
+  instance's overlapping tick does nothing instead of racing the first
+  (verified with a real cross-connection lock-contention test, not an
+  in-process mutex). Repeated command failures now back off exponentially
+  and, after 5 consecutive failures, suspend reconciliation for that
+  workload entirely until an admin clears it (`POST
+  /api/admin/workloads/:id/clear-failure`) - no more retrying a
+  permanently broken workload every 30 seconds forever. See
+  `docs/reconciliation.md`.
+
 **Not started yet** (remaining distributed-mission phases, roughly in the
 mission's own priority order): Docker runtime execution and `secretRef`
-resolution (both schema-validated, neither executed yet),
-distributed drain/evacuation with fencing (Phase 10), deployment artifacts + rollout
-strategies, the fleet simulator, further dashboard UI (a Scheduler page,
-real-time updates), the CLI, observability
+resolution (both schema-validated, neither executed yet), deployment
+artifacts + rollout strategies, the fleet simulator, further dashboard UI
+(a Scheduler page, real-time updates), the CLI, observability
 (OpenTelemetry/Prometheus), expanded RBAC/approvals, the broader security
 test suite, and the acceptance-test demo script. Each will be added to
 "Shipped" above with its own verification notes as it actually lands -

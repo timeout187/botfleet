@@ -65,10 +65,11 @@ documented gap, not a silent one (see `docs/roadmap.md`).
 
 ## Placement
 
-`requiredLabels`/`preferredLabels` are validated and stored today but not
-yet consumed by anything - there is no scheduler yet (`docs/roadmap.md`).
-A workload is assigned to an agent by an admin action
-(`POST /api/admin/workloads/:id/assign`), not automatically.
+`requiredLabels`/`preferredLabels` are validated and stored, and are now
+consumed by `@botfleet/scheduler`'s eligibility filters and scoring (see
+`docs/scheduler.md`) - but only as a dry-run *recommendation*. A workload
+is still assigned to an agent by an explicit admin action
+(`POST /api/admin/workloads/:id/assign`), never automatically.
 
 ## What's real vs. not yet
 

@@ -23,7 +23,14 @@ import { loadConfig } from "./config";
 import { loadState, saveState } from "./state";
 import { sampleResources } from "./resources";
 import { startLocalIpcServer } from "./local-ipc";
-import { cacheWorkloadSpec, startWorkload, stopWorkload, restartWorkload } from "./workload-runner";
+import {
+  cacheWorkloadSpec,
+  trackGeneration,
+  getRunningInventory,
+  startWorkload,
+  stopWorkload,
+  restartWorkload,
+} from "./workload-runner";
 
 const config = loadConfig();
 
@@ -145,14 +152,30 @@ function startHeartbeatLoop(): void {
   const sendHeartbeat = async () => {
     if (!agentId || ws?.readyState !== WebSocket.OPEN) return;
     const resources = await sampleResources();
+    const inventory = getRunningInventory();
     const heartbeat = createAgentToControlPlaneMessage(
       {
         type: "agent.heartbeat",
-        payload: { agentId, status: "online", resources, workloadCount: 0 },
+        payload: { agentId, status: "online", resources, workloadCount: inventory.length },
       },
       { senderId: agentId },
     );
     ws.send(JSON.stringify(heartbeat));
+
+    // Reported every heartbeat so a stale agent (reassigned away while
+    // disconnected/partitioned) gets fenced within one heartbeat interval
+    // of reconnecting - see docs/reconciliation.md's "Ownership fencing".
+    const inventoryMessage = createAgentToControlPlaneMessage(
+      {
+        type: "agent.inventory",
+        payload: {
+          agentId,
+          workloads: inventory.map((w) => ({ ...w, runtimeStatus: "online" as const })),
+        },
+      },
+      { senderId: agentId },
+    );
+    ws.send(JSON.stringify(inventoryMessage));
   };
   void sendHeartbeat();
   heartbeatTimer = setInterval(() => void sendHeartbeat(), 15_000);
@@ -203,7 +226,7 @@ type WorkloadCommandMessage = Extract<
  * beyond echoing that key back.
  */
 async function handleWorkloadCommand(message: WorkloadCommandMessage): Promise<void> {
-  const { workloadId, botId, idempotencyKey } = message.payload;
+  const { workloadId, botId, generation, idempotencyKey } = message.payload;
 
   forwardBotMessage("agent.command_ack", {
     agentId,
@@ -214,15 +237,18 @@ async function handleWorkloadCommand(message: WorkloadCommandMessage): Promise<v
   let result: { ok: boolean; error?: string };
   switch (message.type) {
     case "bot.update":
-      result = cacheWorkloadSpec(workloadId, botId, message.payload.specification);
+      result = cacheWorkloadSpec(workloadId, botId, message.payload.specification, generation);
       break;
     case "bot.start":
+      trackGeneration(workloadId, generation);
       result = startWorkload(workloadId);
       break;
     case "bot.stop":
+      trackGeneration(workloadId, generation);
       result = await stopWorkload(workloadId);
       break;
     case "bot.restart":
+      trackGeneration(workloadId, generation);
       result = await restartWorkload(workloadId);
       break;
   }

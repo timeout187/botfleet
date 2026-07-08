@@ -17,6 +17,11 @@ interface WorkloadEntry {
   botId: string;
   spec: WorkloadSpec;
   process: ChildProcess | null;
+  /** The fencing token this entry was last updated at (see
+   * docs/reconciliation.md's "Ownership fencing") - reported back to the
+   * control plane in every `agent.inventory` message so a stale agent
+   * (reassigned away while disconnected) can be detected and fenced. */
+  generation: number;
 }
 
 const workloads = new Map<string, WorkloadEntry>();
@@ -33,14 +38,42 @@ export function cacheWorkloadSpec(
   workloadId: string,
   botId: string,
   rawSpec: unknown,
+  generation: number,
 ): RunnerResult {
   const parsed = parseWorkloadSpec(rawSpec);
   if (!parsed.ok) {
     return { ok: false, error: `invalid workload spec: ${parsed.issues.join("; ")}` };
   }
   const existing = workloads.get(workloadId);
-  workloads.set(workloadId, { botId, spec: parsed.spec, process: existing?.process ?? null });
+  workloads.set(workloadId, {
+    botId,
+    spec: parsed.spec,
+    process: existing?.process ?? null,
+    generation,
+  });
   return { ok: true };
+}
+
+/** Records the generation a start/stop/restart command targeted, without
+ * touching the cached spec - keeps the reported inventory current even
+ * when a command arrives after a reassignment bumped the generation but
+ * before the next `bot.update` refreshes the spec. */
+export function trackGeneration(workloadId: string, generation: number): void {
+  const entry = workloads.get(workloadId);
+  if (entry) entry.generation = generation;
+}
+
+/** Every workload this agent currently believes it's running, for
+ * `agent.inventory` (see docs/reconciliation.md's "Ownership fencing") -
+ * only entries with a live process, not everything ever cached. */
+export function getRunningInventory(): { workloadId: string; botId: string; generation: number }[] {
+  const result: { workloadId: string; botId: string; generation: number }[] = [];
+  for (const [workloadId, entry] of workloads) {
+    if (entry.process && !entry.process.killed) {
+      result.push({ workloadId, botId: entry.botId, generation: entry.generation });
+    }
+  }
+  return result;
 }
 
 export function startWorkload(workloadId: string): RunnerResult {

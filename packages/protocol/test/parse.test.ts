@@ -89,7 +89,7 @@ describe("parseControlPlaneToAgentMessage", () => {
     const message = createControlPlaneToAgentMessage(
       {
         type: "bot.restart",
-        payload: { workloadId: "wl-1", botId: "bot-1", idempotencyKey: randomUUID() },
+        payload: { workloadId: "wl-1", botId: "bot-1", generation: 1, idempotencyKey: randomUUID() },
       },
       { senderId: "control-plane" },
     );
@@ -99,11 +99,29 @@ describe("parseControlPlaneToAgentMessage", () => {
 
   it("rejects bot.restart missing the required idempotencyKey", () => {
     const message = createControlPlaneToAgentMessage(
-      { type: "bot.restart", payload: { workloadId: "wl-1", botId: "bot-1", idempotencyKey: "k" } },
+      {
+        type: "bot.restart",
+        payload: { workloadId: "wl-1", botId: "bot-1", generation: 1, idempotencyKey: "k" },
+      },
       { senderId: "control-plane" },
     );
     // @ts-expect-error deliberately corrupting the payload for the test
     delete message.payload.idempotencyKey;
+    const result = parseControlPlaneToAgentMessage(message);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("malformed_payload");
+  });
+
+  it("rejects a workload command missing the required generation fencing token", () => {
+    const message = createControlPlaneToAgentMessage(
+      {
+        type: "bot.start",
+        payload: { workloadId: "wl-1", botId: "bot-1", generation: 1, idempotencyKey: randomUUID() },
+      },
+      { senderId: "control-plane" },
+    );
+    // @ts-expect-error deliberately corrupting the payload for the test
+    delete message.payload.generation;
     const result = parseControlPlaneToAgentMessage(message);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("malformed_payload");

@@ -1,7 +1,7 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
-import { reconcileWorkloads } from "@/lib/reconciliation";
+import { reconcileWorkloads, clearReconciliationFailure } from "@/lib/reconciliation";
 import {
   AgentCommandStatus,
   AgentStatus,
@@ -165,5 +165,99 @@ describe("reconcileWorkloads", () => {
     );
     const commandCount = await db.agentCommand.count({ where: { workloadId: workload.id } });
     expect(commandCount).toBe(1);
+  });
+
+  it("skips a workload suspended after repeated failures", async () => {
+    const agent = await makeAgent(`reconcile-agent-e-${suffix}`);
+    const workload = await makeWorkload({
+      agentId: agent.id,
+      desiredState: WorkloadDesiredState.running,
+      observedState: WorkloadObservedState.stopped,
+    });
+    await db.workload.update({
+      where: { id: workload.id },
+      data: { reconciliationSuspendedAt: new Date() },
+    });
+
+    const result = await reconcileWorkloads(null);
+
+    expect(result.skipped.find((s) => s.workloadId === workload.id)?.reason).toMatch(
+      /suspended/,
+    );
+    const commandCount = await db.agentCommand.count({ where: { workloadId: workload.id } });
+    expect(commandCount).toBe(0);
+  });
+
+  it("skips a workload still backing off after a recent failure", async () => {
+    const agent = await makeAgent(`reconcile-agent-f-${suffix}`);
+    const workload = await makeWorkload({
+      agentId: agent.id,
+      desiredState: WorkloadDesiredState.running,
+      observedState: WorkloadObservedState.stopped,
+    });
+    await db.workload.update({
+      where: { id: workload.id },
+      data: { nextReconcileAttemptAt: new Date(Date.now() + 60_000) },
+    });
+
+    const result = await reconcileWorkloads(null);
+
+    expect(result.skipped.find((s) => s.workloadId === workload.id)?.reason).toMatch(
+      /backing off/,
+    );
+    const commandCount = await db.agentCommand.count({ where: { workloadId: workload.id } });
+    expect(commandCount).toBe(0);
+  });
+
+  it("clearReconciliationFailure resets suspension/backoff so the next tick acts again", async () => {
+    const agent = await makeAgent(`reconcile-agent-g-${suffix}`);
+    const workload = await makeWorkload({
+      agentId: agent.id,
+      desiredState: WorkloadDesiredState.running,
+      observedState: WorkloadObservedState.stopped,
+    });
+    await db.workload.update({
+      where: { id: workload.id },
+      data: { reconciliationSuspendedAt: new Date(), reconcileAttempts: 5 },
+    });
+
+    await clearReconciliationFailure(workload.id);
+
+    const cleared = await db.workload.findUnique({ where: { id: workload.id } });
+    expect(cleared?.reconciliationSuspendedAt).toBeNull();
+    expect(cleared?.reconcileAttempts).toBe(0);
+    expect(cleared?.nextReconcileAttemptAt).toBeNull();
+
+    const result = await reconcileWorkloads(null);
+    expect(result.skipped.find((s) => s.workloadId === workload.id)).toBeUndefined();
+    const command = await db.agentCommand.findFirst({ where: { workloadId: workload.id } });
+    expect(command?.commandType).toBe("bot.start");
+  });
+
+  it("holds a real Postgres advisory lock for the duration of a tick", async () => {
+    // Directly exercises the same lock reconcileWorkloads() takes, using
+    // a separate raw connection - proves it's a real cross-connection
+    // Postgres lock, not an in-process mutex that only works because
+    // Node is single-threaded.
+    const RECONCILE_LOCK_KEY: [number, number] = [847362, 1];
+    const held = await db.$transaction(async (tx) => {
+      const [{ locked }] = await tx.$queryRaw<{ locked: boolean }[]>`
+        SELECT pg_try_advisory_xact_lock(${RECONCILE_LOCK_KEY[0]}, ${RECONCILE_LOCK_KEY[1]}) AS locked
+      `;
+      expect(locked).toBe(true);
+
+      // While this transaction still holds the lock, a concurrent
+      // reconcileWorkloads() tick must observe it held and do no work.
+      const result = await reconcileWorkloads(null);
+      expect(result.lockHeld).toBe(true);
+      expect(result.checked).toBe(0);
+      return locked;
+    });
+    expect(held).toBe(true);
+
+    // Lock is released once the holding transaction ends - a normal
+    // tick afterward acquires it again.
+    const afterRelease = await reconcileWorkloads(null);
+    expect(afterRelease.lockHeld).toBeFalsy();
   });
 });

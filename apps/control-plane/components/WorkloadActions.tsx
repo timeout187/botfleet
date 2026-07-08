@@ -8,10 +8,12 @@ export function WorkloadActions({
   workloadId,
   assignedAgentId,
   agents,
+  reconciliationSuspended,
 }: {
   workloadId: string;
   assignedAgentId: string | null;
   agents: { id: string; name: string }[];
+  reconciliationSuspended?: boolean;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState<string | null>(null);
@@ -68,6 +70,18 @@ export function WorkloadActions({
     router.refresh();
   }
 
+  async function clearFailure() {
+    setPending("clear-failure");
+    setError(null);
+    const res = await fetch(`/api/admin/workloads/${workloadId}/clear-failure`, {
+      method: "POST",
+    });
+    const body = await res.json().catch(() => ({}));
+    setPending(null);
+    if (!res.ok) setError(body.error ?? "Failed to clear");
+    router.refresh();
+  }
+
   return (
     <div className="flex flex-col items-end gap-1">
       <Button
@@ -115,6 +129,11 @@ export function WorkloadActions({
           {pending === "restart" ? "Restarting…" : "Restart"}
         </Button>
       </div>
+      {reconciliationSuspended && (
+        <Button variant="ghost" disabled={pending !== null} onClick={clearFailure} className="text-xs">
+          {pending === "clear-failure" ? "Clearing…" : "Clear reconciliation failure"}
+        </Button>
+      )}
       {error && <p className="text-xs text-red-400">{error}</p>}
     </div>
   );

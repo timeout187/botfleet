@@ -447,26 +447,37 @@ model EnrollmentToken {
 
 /// A bot's desired-vs-observed running state on a specific agent, and the
 /// validated spec (@botfleet/workload-spec) describing how to run it.
-/// `generation`/`observedGeneration` let a future reconciliation loop
-/// tell "the spec changed but the agent hasn't caught up yet" apart from
-/// "the agent is already running the current spec" - not yet consumed by
-/// anything (no reconciliation loop exists yet), but recorded from the
-/// start so that loop doesn't need a schema migration to use them.
+/// `generation` is the fencing token: bumped on every (re)assignment
+/// (lib/workloads.ts's assignWorkloadToAgent) and carried on every
+/// bot.update/start/stop/restart command. `observedGeneration` is only
+/// ever set to the generation a *successful* command result actually
+/// confirmed (lib/agent-gateway/server.ts's handleCommandResult) - the
+/// gap between the two means "the agent hasn't caught up yet," and an
+/// agent reporting itself as the runner of a workload it no longer owns
+/// (via agent.inventory) is the split-brain signal that gets it fenced
+/// (see docs/reconciliation.md's "Ownership fencing" section).
+/// `reconcileAttempts`/`nextReconcileAttemptAt`/`reconciliationSuspendedAt`
+/// give the reconciliation loop bounded exponential backoff and a
+/// terminal give-up state instead of retrying a permanently broken
+/// workload forever.
 model Workload {
-  id                   String                @id @default(cuid())
-  botId                String                @unique @map("bot_id")
-  bot                  Bot                   @relation(fields: [botId], references: [id], onDelete: Cascade)
-  specificationJson    Json                  @map("specification_json")
-  specificationVersion String                @map("specification_version")
-  desiredState         WorkloadDesiredState  @default(stopped) @map("desired_state")
-  observedState        WorkloadObservedState @default(unknown) @map("observed_state")
-  assignedAgentId      String?               @map("assigned_agent_id")
-  assignedAgent        Agent?                @relation(fields: [assignedAgentId], references: [id])
-  generation           Int                   @default(1)
-  observedGeneration   Int                   @default(0) @map("observed_generation")
-  lastTransitionAt     DateTime?             @map("last_transition_at")
-  createdAt            DateTime              @default(now()) @map("created_at")
-  updatedAt            DateTime              @updatedAt @map("updated_at")
+  id                        String                @id @default(cuid())
+  botId                     String                @unique @map("bot_id")
+  bot                       Bot                   @relation(fields: [botId], references: [id], onDelete: Cascade)
+  specificationJson         Json                  @map("specification_json")
+  specificationVersion      String                @map("specification_version")
+  desiredState              WorkloadDesiredState  @default(stopped) @map("desired_state")
+  observedState             WorkloadObservedState @default(unknown) @map("observed_state")
+  assignedAgentId           String?               @map("assigned_agent_id")
+  assignedAgent             Agent?                @relation(fields: [assignedAgentId], references: [id])
+  generation                Int                   @default(1)
+  observedGeneration        Int                   @default(0) @map("observed_generation")
+  reconcileAttempts         Int                   @default(0) @map("reconcile_attempts")
+  nextReconcileAttemptAt    DateTime?             @map("next_reconcile_attempt_at")
+  reconciliationSuspendedAt DateTime?             @map("reconciliation_suspended_at")
+  lastTransitionAt          DateTime?             @map("last_transition_at")
+  createdAt                 DateTime              @default(now()) @map("created_at")
+  updatedAt                 DateTime              @updatedAt @map("updated_at")
 
   commands AgentCommand[]
 
@@ -474,12 +485,15 @@ model Workload {
   @@map("workloads")
 }
 
-/// A single start/stop/restart command sent to an agent - the durable
-/// record behind the `idempotencyKey` every ControlPlaneToAgent command
-/// message carries (@botfleet/protocol). `status` is only ever advanced
-/// by the agent's own `agent.command_ack`/`agent.command_result`
+/// A single start/stop/restart/update command sent to an agent - the
+/// durable record behind the `idempotencyKey` every ControlPlaneToAgent
+/// command message carries (@botfleet/protocol). `status` is only ever
+/// advanced by the agent's own `agent.command_ack`/`agent.command_result`
 /// messages (lib/agent-gateway/server.ts), never guessed at by the
-/// control plane.
+/// control plane. `generation` records the fencing token the command was
+/// issued for - a fencing stop sent to a stale agent after evacuation
+/// carries the generation that agent last reported, not the workload's
+/// current one, since the stale agent was never told about the new one.
 model AgentCommand {
   id             String             @id @default(cuid())
   agentId        String             @map("agent_id")
@@ -489,6 +503,7 @@ model AgentCommand {
   commandType    String             @map("command_type")
   payloadJson    Json               @map("payload_json")
   status         AgentCommandStatus @default(pending)
+  generation     Int?
   idempotencyKey String             @unique @map("idempotency_key")
   createdById    String?            @map("created_by_id")
   createdBy      User?              @relation(fields: [createdById], references: [id])

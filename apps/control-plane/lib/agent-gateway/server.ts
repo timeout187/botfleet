@@ -29,6 +29,7 @@ import { db } from "@/lib/db";
 import { consumeEnrollmentToken, restrictionsSatisfied } from "@/lib/agents/enrollment";
 import { agentCredentialProvider } from "@/lib/agents/credential";
 import { writeAuditLog } from "@/lib/audit";
+import { fenceStaleAgent } from "@/lib/workloads";
 import {
   AgentStatus,
   AgentCommandStatus,
@@ -44,6 +45,18 @@ import {
 const PORT = Number(process.env.AGENT_GATEWAY_PORT ?? 4010);
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const HEARTBEAT_TIMEOUT_MS = 45_000;
+
+/** Reconciliation backoff (docs/reconciliation.md's "Bounded retry"):
+ * after this many consecutive start/stop/restart failures for the same
+ * workload, reconciliation stops retrying automatically until an admin
+ * clears it (`POST /api/admin/workloads/:id/clear-failure`). */
+const MAX_RECONCILE_ATTEMPTS = 5;
+const BASE_BACKOFF_MS = 30_000;
+const MAX_BACKOFF_MS = 30 * 60_000;
+
+function reconcileBackoffMs(attempts: number): number {
+  return Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * 2 ** attempts);
+}
 
 const replayGuard = new InMemoryReplayGuard();
 
@@ -64,6 +77,7 @@ interface ConnectionState {
 
 type EnrollPayload = Extract<AgentToControlPlaneMessage, { type: "agent.enroll" }>["payload"];
 type HeartbeatPayload = Extract<AgentToControlPlaneMessage, { type: "agent.heartbeat" }>["payload"];
+type InventoryPayload = Extract<AgentToControlPlaneMessage, { type: "agent.inventory" }>["payload"];
 type CommandResultPayload = Extract<
   AgentToControlPlaneMessage,
   { type: "agent.command_result" }
@@ -167,6 +181,9 @@ async function handleMessage(ws: WebSocket, state: ConnectionState, raw: Buffer)
   switch (message.type) {
     case "agent.heartbeat":
       await handleHeartbeat(state, message.payload);
+      break;
+    case "agent.inventory":
+      await handleInventory(state, message.payload);
       break;
     case "agent.command_ack":
       await db.agentCommand
@@ -287,25 +304,76 @@ async function handleHeartbeat(state: ConnectionState, payload: HeartbeatPayload
   });
 }
 
+/**
+ * The ownership-fencing check (docs/reconciliation.md): for every
+ * workload this agent claims to be running, compare against
+ * `Workload.assignedAgentId`. A mismatch means this agent was evacuated
+ * or reassigned away while it was disconnected/partitioned and is still
+ * a live "zombie" runner for that workload - fenced immediately with an
+ * unconditional `bot.stop`, regardless of what the reconciliation loop
+ * would otherwise decide for the (correct) current owner. This is the
+ * only place duplicate execution after a reconnect gets caught.
+ */
+async function handleInventory(state: ConnectionState, payload: InventoryPayload): Promise<void> {
+  if (!state.agentId || payload.agentId !== state.agentId) {
+    console.warn(
+      `[agent-gateway] inventory agentId mismatch (connection=${state.agentId}, payload=${payload.agentId})`,
+    );
+    return;
+  }
+
+  for (const entry of payload.workloads) {
+    const workload = await db.workload.findUnique({ where: { id: entry.workloadId } });
+    if (!workload) continue;
+    if (workload.assignedAgentId === state.agentId) continue;
+
+    console.warn(
+      `[agent-gateway] fencing agent ${state.agentId}: reported running workload ${entry.workloadId} (generation ${entry.generation}) it no longer owns`,
+    );
+    await fenceStaleAgent({
+      staleAgentId: state.agentId,
+      workloadId: entry.workloadId,
+      botId: entry.botId,
+      staleGeneration: entry.generation,
+    });
+  }
+}
+
 /** Maps a completed command back to `AgentCommand.status` and, for
  * workload-affecting command types, to `Workload.observedState` - this is
  * the only place `observedState` is ever written, so it always reflects
  * what an agent actually reported, never an assumption. */
 async function handleCommandResult(payload: CommandResultPayload): Promise<void> {
-  const command = await db.agentCommand.findUnique({
-    where: { idempotencyKey: payload.idempotencyKey },
-  });
+  await markCommandOutcome(
+    payload.idempotencyKey,
+    payload.status === "succeeded",
+    payload.safeError ?? null,
+  );
+}
+
+/**
+ * Shared by `handleCommandResult` (the agent actually ran the command)
+ * and the dispatcher below (the agent wasn't even connected to try) - a
+ * dispatch failure is exactly as real a failure as an execution failure
+ * for backoff/suspension purposes, so both paths go through the same
+ * bookkeeping rather than one silently skipping it.
+ */
+async function markCommandOutcome(
+  idempotencyKey: string,
+  succeeded: boolean,
+  safeError: string | null,
+): Promise<void> {
+  const command = await db.agentCommand.findUnique({ where: { idempotencyKey } });
   if (!command) {
-    console.warn(`[agent-gateway] command_result for unknown idempotencyKey ${payload.idempotencyKey}`);
+    console.warn(`[agent-gateway] command outcome for unknown idempotencyKey ${idempotencyKey}`);
     return;
   }
 
-  const succeeded = payload.status === "succeeded";
   await db.agentCommand.update({
     where: { id: command.id },
     data: succeeded
       ? { status: AgentCommandStatus.succeeded, completedAt: new Date() }
-      : { status: AgentCommandStatus.failed, failedAt: new Date(), safeError: payload.safeError ?? null },
+      : { status: AgentCommandStatus.failed, failedAt: new Date(), safeError },
   });
 
   if (!command.workloadId) return;
@@ -316,14 +384,37 @@ async function handleCommandResult(payload: CommandResultPayload): Promise<void>
   const workload = await db.workload.findUnique({ where: { id: command.workloadId } });
   if (!workload) return;
 
+  if (succeeded) {
+    await db.workload.update({
+      where: { id: command.workloadId },
+      data: {
+        observedState,
+        observedGeneration: workload.generation,
+        lastTransitionAt: new Date(),
+        reconcileAttempts: 0,
+        nextReconcileAttemptAt: null,
+      },
+    });
+    return;
+  }
+
+  const attempts = workload.reconcileAttempts + 1;
+  const suspended = attempts >= MAX_RECONCILE_ATTEMPTS;
   await db.workload.update({
     where: { id: command.workloadId },
     data: {
       observedState,
-      observedGeneration: succeeded ? workload.generation : workload.observedGeneration,
       lastTransitionAt: new Date(),
+      reconcileAttempts: attempts,
+      nextReconcileAttemptAt: suspended ? null : new Date(Date.now() + reconcileBackoffMs(attempts)),
+      reconciliationSuspendedAt: suspended ? new Date() : null,
     },
   });
+  if (suspended) {
+    console.warn(
+      `[agent-gateway] workload ${command.workloadId} suspended from reconciliation after ${attempts} consecutive failures`,
+    );
+  }
 }
 
 function observedStateFor(commandType: string, succeeded: boolean): WorkloadObservedState | null {
@@ -349,16 +440,13 @@ const commandWorker = new Worker<AgentCommandJobData>(
     const ws = liveConnections.get(job.data.agentId);
     if (!ws || ws.readyState !== ws.OPEN) {
       const payload = job.data.message as { payload?: { idempotencyKey?: string } };
-      await db.agentCommand
-        .updateMany({
-          where: { idempotencyKey: payload.payload?.idempotencyKey },
-          data: {
-            status: AgentCommandStatus.failed,
-            failedAt: new Date(),
-            safeError: "Agent is not currently connected",
-          },
-        })
-        .catch(() => {});
+      if (payload.payload?.idempotencyKey) {
+        await markCommandOutcome(
+          payload.payload.idempotencyKey,
+          false,
+          "Agent is not currently connected",
+        ).catch(() => {});
+      }
       return { delivered: false };
     }
     ws.send(JSON.stringify(job.data.message));
