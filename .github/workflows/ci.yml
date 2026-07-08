@@ -1,0 +1,310 @@
+name: CI
+
+# Every job here runs against real infrastructure it stands up itself
+# (Postgres/Redis service containers, real `npm ci`, real `docker build`)
+# - nothing is faked or skipped. No job publishes anything: docker-build
+# only loads images into the runner's local daemon, never pushes to a
+# registry, and nothing here creates a GitHub release or runs `npm
+# publish` - see docs/release-criteria.md's "requires explicit owner
+# approval" list.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  format-and-lint:
+    name: Formatting + lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+
+  typecheck:
+    name: Strict typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
+  unit-tests:
+    name: Unit tests (packages/*, apps/agent - no external services)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Run tests for every workspace except control-plane
+        run: |
+          for pkg in packages/protocol packages/scheduler packages/workload-spec packages/runtime-sdk packages/adapter-discordjs packages/adapter-eris apps/agent; do
+            echo "::group::test $pkg"
+            npm run test --workspace "$(node -p "require('./$pkg/package.json').name")"
+            echo "::endgroup::"
+          done
+
+  integration-tests:
+    name: Integration tests (apps/control-plane - real Postgres + Redis)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: botfleet
+          POSTGRES_PASSWORD: botfleet
+          POSTGRES_DB: botfleet_dev
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U botfleet"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://botfleet:botfleet@localhost:5432/botfleet_dev
+      REDIS_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Apply migrations
+        working-directory: apps/control-plane
+        run: npx prisma migrate deploy
+      - name: Run control-plane test suite
+        run: npm run test --workspace @botfleet/control-plane
+
+  build:
+    name: Build every workspace
+    runs-on: ubuntu-latest
+    needs: [format-and-lint, typecheck]
+    env:
+      # Only needed for `prisma generate` to resolve the datasource
+      # provider at build time - migrations run separately, and this
+      # value is never used to connect.
+      DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+  prisma-migration-validate:
+    name: Prisma migration drift check
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: botfleet
+          POSTGRES_PASSWORD: botfleet
+          POSTGRES_DB: botfleet_dev
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U botfleet"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://botfleet:botfleet@localhost:5432/botfleet_dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Apply committed migrations to a fresh database
+        working-directory: apps/control-plane
+        run: npx prisma migrate deploy
+      - name: Fail if schema.prisma has changes not captured by a migration
+        working-directory: apps/control-plane
+        run: |
+          npx prisma migrate diff \
+            --from-config-datasource prisma.config.ts \
+            --to-schema prisma/schema.prisma \
+            --exit-code
+      - name: Fail if `prisma migrate status` reports drift
+        working-directory: apps/control-plane
+        run: npx prisma migrate status
+
+  docker-build:
+    name: Build container images (no push)
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      # Tagged with the intended eventual ghcr.io path so the name matches
+      # docs/release-criteria.md, but `push: false` means nothing ever
+      # leaves this runner - publishing is a separate, explicitly-approved
+      # action (see that doc's "requires explicit owner approval" list).
+      - name: Build botfleet-control-plane
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/control-plane/Dockerfile
+          push: false
+          load: true
+          tags: |
+            botfleet-control-plane:ci
+            ghcr.io/${{ github.repository_owner }}/botfleet-control-plane:${{ github.sha }}
+      - name: Build botfleet-agent
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/agent/Dockerfile
+          push: false
+          load: true
+          tags: |
+            botfleet-agent:ci
+            ghcr.io/${{ github.repository_owner }}/botfleet-agent:${{ github.sha }}
+      - name: Save images for the smoke-test job
+        run: |
+          docker save botfleet-control-plane:ci -o /tmp/botfleet-control-plane.tar
+          docker save botfleet-agent:ci -o /tmp/botfleet-agent.tar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: container-images
+          path: |
+            /tmp/botfleet-control-plane.tar
+            /tmp/botfleet-agent.tar
+          retention-days: 1
+
+  container-smoke-test:
+    name: Container smoke test
+    runs-on: ubuntu-latest
+    needs: [docker-build]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: botfleet
+          POSTGRES_PASSWORD: botfleet
+          POSTGRES_DB: botfleet
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U botfleet"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: container-images
+          path: /tmp
+      - run: docker load -i /tmp/botfleet-control-plane.tar
+      - run: docker load -i /tmp/botfleet-agent.tar
+      - name: Start botfleet-control-plane and wait for /status to respond
+        run: |
+          docker run -d --name control-plane \
+            --network host \
+            -e DATABASE_URL="postgresql://botfleet:botfleet@127.0.0.1:5432/botfleet" \
+            -e REDIS_URL="redis://127.0.0.1:6379" \
+            -e BOTFLEET_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
+            -e AUTH_DISCORD_ID="smoke-test" \
+            -e AUTH_DISCORD_SECRET="smoke-test" \
+            -e AUTH_SECRET="$(openssl rand -base64 32)" \
+            -e AUTH_URL="http://localhost:3000" \
+            botfleet-control-plane:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3000/status > /dev/null 2>&1; then
+              echo "control plane responded"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "control plane never responded on /status"
+          docker logs control-plane
+          exit 1
+      - name: Container did not exit/crash
+        run: |
+          status="$(docker inspect -f '{{.State.Status}}' control-plane)"
+          echo "container status: $status"
+          test "$status" = "running"
+      - name: Tear down control-plane
+        if: always()
+        run: docker rm -f control-plane || true
+      - name: Start botfleet-agent and confirm it attempts to connect (no crash loop)
+        run: |
+          docker run -d --name agent \
+            -e BOTFLEET_CONTROL_PLANE_WS_URL="ws://127.0.0.1:4010" \
+            -e BOTFLEET_AGENT_NAME="ci-smoke-test-agent" \
+            botfleet-agent:ci
+          sleep 5
+          docker logs agent
+          status="$(docker inspect -f '{{.State.Status}}' agent)"
+          echo "container status: $status"
+          test "$status" = "running"
+      - name: Tear down agent
+        if: always()
+        run: docker rm -f agent || true
+
+  codeql:
+    name: CodeQL analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+      - uses: github/codeql-action/analyze@v3
+
+  secret-scan:
+    name: Secret scanning (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Download gitleaks
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz -o gitleaks.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
+      - name: Scan full history for committed secrets
+        run: ./gitleaks detect --source . --verbose --redact
+
+  sbom:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: sbom.cyclonedx.json
+          upload-artifact: true
+          upload-release-assets: false

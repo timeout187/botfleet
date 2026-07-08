@@ -269,10 +269,13 @@ cp apps/control-plane/.env.example apps/control-plane/.env   # fill in the same 
 docker compose --env-file apps/control-plane/.env up --build -d
 ```
 
-Runs the app, Postgres, Redis, and the AI worker (`worker-ai`) in
-containers; migrations run automatically on the app container's start. If
-`worker-ai` starts before migrations finish, it'll crash-loop briefly and
-recover once the `app` container has migrated - restart policy handles it.
+Runs the app, Postgres, Redis, the AI worker (`worker-ai`), and the
+agent gateway (`agent-gateway`, port 4010 - what remote `apps/agent`
+processes connect to, see `docs/agent-installation.md`) in containers;
+migrations run automatically on the app container's start. If
+`worker-ai`/`agent-gateway` start before migrations finish, they'll
+crash-loop briefly and recover once the `app` container has migrated -
+restart policy handles it.
 
 ## Security model
 
@@ -299,6 +302,18 @@ Full write-up: [`docs/security.md`](./docs/security.md).
 - [`docs/security.md`](./docs/security.md) - token vault, authZ, CSP, known accepted risk
 - [`docs/api-reference.md`](./docs/api-reference.md) - every admin/customer route
 - [`docs/roadmap.md`](./docs/roadmap.md) - shipped / next / explicitly out of scope
+- [`docs/scheduler.md`](./docs/scheduler.md) - placement scoring, dry-run-only design
+- [`docs/reconciliation.md`](./docs/reconciliation.md) - self-healing loop, ownership fencing, draining, backoff
+- [`docs/release-criteria.md`](./docs/release-criteria.md) - compatibility matrix, release gates, what needs owner approval
+- [`CHANGELOG.md`](./CHANGELOG.md) - notable changes by version
+
+Try the full distributed control plane in one command (spins up its own
+agent-gateway, worker, and two real agent processes; cleans up after
+itself):
+
+```bash
+npm run demo:distributed
+```
 
 ## PM2 mode / Docker mode
 

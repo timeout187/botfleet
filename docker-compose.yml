@@ -56,5 +56,27 @@ services:
       REDIS_URL: "redis://redis:6379"
       BOTFLEET_ENCRYPTION_KEY: "${BOTFLEET_ENCRYPTION_KEY:?set BOTFLEET_ENCRYPTION_KEY in your shell or .env}"
 
+  # The WebSocket server remote apps/agent processes connect outbound to
+  # (docs/agent-installation.md). Not part of the `app` service - it's a
+  # separate long-running process (npm run agent-gateway), same as
+  # worker-ai above. `apps/agent` itself deliberately has no service
+  # here: it's meant to run on the remote machines it manages, not
+  # co-located with the control plane's own stack.
+  agent-gateway:
+    build:
+      context: .
+      dockerfile: apps/control-plane/Dockerfile
+    command: ["npm", "run", "agent-gateway"]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "4010:4010"
+    environment:
+      DATABASE_URL: "postgresql://botfleet:botfleet@db:5432/botfleet"
+      REDIS_URL: "redis://redis:6379"
+      BOTFLEET_ENCRYPTION_KEY: "${BOTFLEET_ENCRYPTION_KEY:?set BOTFLEET_ENCRYPTION_KEY in your shell or .env}"
+
 volumes:
   botfleet-db:
