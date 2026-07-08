@@ -15,14 +15,28 @@ COPY packages/runtime-sdk/package.json packages/runtime-sdk/package.json
 COPY packages/workload-spec/package.json packages/workload-spec/package.json
 RUN npm ci
 
+# @botfleet/protocol, @botfleet/runtime-sdk, and @botfleet/workload-spec
+# are each resolved by their built dist/ output (see their package.json
+# "main" fields) - that output is gitignored, so it has to be built here
+# rather than just copied in from source like apps/agent itself.
+FROM node:20-slim AS builder
+WORKDIR /repo
+COPY --from=deps /repo/node_modules ./node_modules
+COPY packages/protocol packages/protocol
+COPY packages/runtime-sdk packages/runtime-sdk
+COPY packages/workload-spec packages/workload-spec
+RUN npm run build --workspace @botfleet/protocol \
+  && npm run build --workspace @botfleet/workload-spec \
+  && npm run build --workspace @botfleet/runtime-sdk
+
 FROM node:20-slim AS runner
 WORKDIR /repo
 RUN groupadd -r botfleet && useradd -r -g botfleet botfleet
 ENV NODE_ENV=production
 COPY --from=deps /repo/node_modules ./node_modules
-COPY packages/protocol packages/protocol
-COPY packages/runtime-sdk packages/runtime-sdk
-COPY packages/workload-spec packages/workload-spec
+COPY --from=builder /repo/packages/protocol packages/protocol
+COPY --from=builder /repo/packages/runtime-sdk packages/runtime-sdk
+COPY --from=builder /repo/packages/workload-spec packages/workload-spec
 COPY apps/agent apps/agent
 WORKDIR /repo/apps/agent
 USER botfleet

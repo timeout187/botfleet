@@ -17,7 +17,11 @@ COPY . .
 # provider, not to connect - migrations run separately at container start.
 ENV DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
 RUN npx prisma generate --schema apps/control-plane/prisma/schema.prisma
-RUN npm run build --workspace @botfleet/control-plane
+# `npm run build` (not just the control-plane workspace's own build) -
+# control-plane imports @botfleet/protocol and @botfleet/scheduler by
+# their built dist/ output, which isn't committed and doesn't exist yet
+# at this point in the image.
+RUN npm run build
 
 FROM node:20-slim AS runner
 WORKDIR /repo/apps/control-plane

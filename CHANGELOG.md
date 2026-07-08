@@ -53,6 +53,15 @@ images, creating a GitHub release, `npm publish`).
 
 ### Fixed
 
+- **CI failing on a genuinely fresh checkout**: `dist/` (every package's
+  build output) and `apps/control-plane/app/generated/prisma` (the
+  generated Prisma client) are correctly gitignored, but no CI job ever
+  built or generated them before running `typecheck`/tests/`build` - the
+  development sandbox never caught this because it already had those
+  artifacts from earlier manual builds, so the gap only surfaced on this
+  repo's actual first GitHub Actions run. Added a `build:packages` root
+  script and `prisma generate` steps to every job (and both Dockerfiles,
+  which had the identical bug) that needs them.
 - **Stale command result corrupting current workload state**: when
   `drainAgent()` sends its explicit "stop the old copy" command to a
   just-relocated-away agent, that agent's legitimate success response

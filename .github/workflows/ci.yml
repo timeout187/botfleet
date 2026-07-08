@@ -34,6 +34,10 @@ jobs:
   typecheck:
     name: Strict typecheck
     runs-on: ubuntu-latest
+    env:
+      # Only needed for `prisma generate` to resolve the datasource
+      # provider - typecheck never connects to a database.
+      DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -41,6 +45,15 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      # apps/control-plane and apps/agent both import other workspace
+      # packages by their built dist/ output, and apps/control-plane also
+      # imports the generated Prisma client - neither is committed (both
+      # are gitignored build artifacts), so a fresh checkout has neither
+      # until these steps produce them.
+      - run: npm run build:packages
+      - name: Generate Prisma client
+        working-directory: apps/control-plane
+        run: npx prisma generate
       - run: npm run typecheck
 
   unit-tests:
@@ -53,6 +66,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      # apps/agent imports @botfleet/workload-spec and @botfleet/protocol
+      # by their built dist/ output, which isn't committed.
+      - run: npm run build:packages
       - name: Run tests for every workspace except control-plane
         run: |
           for pkg in packages/protocol packages/scheduler packages/workload-spec packages/runtime-sdk packages/adapter-discordjs packages/adapter-eris apps/agent; do
@@ -95,9 +111,16 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      # apps/control-plane imports @botfleet/protocol and
+      # @botfleet/scheduler by their built dist/ output, which isn't
+      # committed.
+      - run: npm run build:packages
       - name: Apply migrations
         working-directory: apps/control-plane
         run: npx prisma migrate deploy
+      - name: Generate Prisma client
+        working-directory: apps/control-plane
+        run: npx prisma generate
       - name: Run control-plane test suite
         run: npm run test --workspace @botfleet/control-plane
 
@@ -117,6 +140,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - name: Generate Prisma client
+        working-directory: apps/control-plane
+        run: npx prisma generate
       - run: npm run build
 
   prisma-migration-validate:
